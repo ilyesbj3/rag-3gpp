@@ -75,7 +75,7 @@ python-multipart==0.0.34
 PyYAML==6.0.4
 qdrant-client==1.20.0
 referencing==0.37.0
-regex==2026.11.19
+regex==2026.9.29
 requests==2.34.2
 rich==15.0.0
 rpds-py==2026.9.1
