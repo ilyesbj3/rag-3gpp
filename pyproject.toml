@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag-3gpp"
+version = "0.1.0"
+description = "RAG chatbot grounded in 3GPP Release 18 specifications TS 23.501 and TS 24.501"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # config
+    "pydantic>=2.6",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    # ingestion
+    "python-docx>=1.1",
+    "tiktoken>=0.7",
+    # indexing / retrieval
+    "numpy>=1.26",
+    "sentence-transformers>=3.0",
+    "qdrant-client>=1.10",
+    "bm25s>=0.2",
+    # generation
+    "google-genai>=1.0",
+    "openai>=1.40",
+    # interface / plots
+    "streamlit>=1.36",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+eval = ["ragas>=0.2"]
+
+[tool.setuptools.packages.find]
+include = ["src*", "eval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "*.md"]  # CLAUDE.md embeds Appendix A verbatim
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Appendix A of CLAUDE.md is copied verbatim; keep its original layout.
+"src/generation/llm.py" = ["E501", "UP", "B"]
+
+[tool.ruff.format]
+exclude = ["src/generation/llm.py"]
