@@ -4,7 +4,9 @@
 # data (regenerable; provenance is in data/VERSIONS.md)
 data/raw/
 data/index/
-data/processed/
+data/processed/*
+!data/processed/parse_report.md
+!data/processed/chunk_samples.md
 
 # eval raw outputs (summaries in eval/results/ are committed)
 eval/results/raw/

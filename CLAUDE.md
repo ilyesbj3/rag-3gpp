@@ -299,6 +299,9 @@ Adapt the parser to what is actually found and record the findings in
   `overlap_tokens` of overlap; part index goes in `chunk_id`.
 - **Never split a table.** A table larger than `max_tokens` becomes its own chunk(s) split
   **by rows**, repeating the header row and table title in every part.
+  A single row larger than `max_tokens` stays whole (12 such chunks, all bit-coding IE tables
+  such as 24.501 Table 9.11.4.13.1; listed in `parse_report.md`). A row made of one cell
+  spanning the full width (notes, sub-headers) keeps its text in the first column only.
 - Very short sections (< `min_tokens`, e.g. a heading with one line) stay as their own chunk
   (do not merge across section numbers — citations must stay exact).
 - Every chunk's `text` starts with a contextual header so both BM25 and the embedder see it:
@@ -683,7 +686,7 @@ pytest -q && ruff check . && ruff format --check .
 
 ---
 
-## 17. Build plan (phases) — stop for user review at the end of each phase
+## 17. Build plan (phases) — autonomous mode: no stops between phases
 
 | # | Phase | Done when |
 |---|---|---|
@@ -699,6 +702,15 @@ pytest -q && ruff check . && ruff format --check .
 | 10 | Generation eval + report | `REPORT.md` + figures |
 | 11 | README + presentation outline + `docs/architecture.md` | grader can install and run from README |
 | 12 | Bonuses (in order): French questions with bge-m3 (+ optional query translation for BM25), embedding comparison (bge-small-en), LLM comparison (Gemini vs Grok), add TS 23.502, Rel-17 vs Rel-18 | each bonus has its own results section |
+
+**Autonomous mode (decided after phase 2): no stops between phases.** Work through phases
+3 → 12 without waiting for review. After each phase update `PROGRESS.md` (done, key numbers,
+decisions, open issues, "Blocked / needs human"); on a restart read CLAUDE.md + PROGRESS.md and
+resume. Run each phase's acceptance checks before moving on. Phase 3 spot-check is replaced by
+`data/processed/chunk_samples.md`. Phases 9–10 run on the unverified test set and every results
+table is labelled "preliminary — gold set pending human validation". Reported eval runs force
+Gemini; Grok is used only for the LLM-comparison bonus. Bonuses only after phases 3–11 are
+committed. Qdrant: Docker is the default, local on-disk mode (`qdrant.url: ""`) the fallback.
 
 Commit locally at the end of every phase with a conventional message (`feat(ingest): …`).
 Commit messages: subject line + optional body describing the change — nothing else
