@@ -2,10 +2,11 @@
 # On Windows without `make`, run the commands directly.
 PY ?= python
 
-.PHONY: install env corpus inspect qdrant index models app eval-retrieval eval-generation report test lint format check
+.PHONY: install env corpus inspect chunks samples qdrant index models app review eval-retrieval eval-generation latency report test lint format check
 
 install:
-	$(PY) -m pip install -e ".[dev]"
+	$(PY) -m pip install -r requirements.lock
+	$(PY) -m pip install -e ".[dev]" --no-deps
 
 env:
 	cp -n .env.example .env
@@ -15,6 +16,12 @@ corpus:
 
 inspect:
 	$(PY) scripts/inspect_docx_styles.py
+
+chunks:
+	$(PY) -m src.ingest.chunker
+
+samples:
+	$(PY) scripts/sample_chunks.py
 
 qdrant:
 	docker compose up -d qdrant
@@ -28,11 +35,17 @@ models:
 app:
 	streamlit run app/streamlit_app.py
 
+review:
+	$(PY) -m eval.make_testset_review
+
 eval-retrieval:
 	$(PY) -m eval.run_retrieval_eval --all-ablations
 
 eval-generation:
 	$(PY) -m eval.run_generation_eval --provider gemini --configs best,baseline,no_hybrid,no_reranker,no_routing
+
+latency:
+	$(PY) -m eval.measure_latency
 
 report:
 	$(PY) -m eval.make_report

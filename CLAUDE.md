@@ -644,15 +644,20 @@ table + chart) · analysis of what helped and why · limits · perspectives & bo
 
 ## 15. Commands (keep in sync with reality; mirror them in the Makefile)
 ```bash
-uv sync                                           # or: pip install -e ".[dev]"
+pip install -r requirements.lock && pip install -e ".[dev]" --no-deps   # Python 3.11 venv
 cp .env.example .env                              # add GEMINI_API_KEY and XAI_API_KEY
 python scripts/download_corpus.py                 # → data/raw/*.zip + data/VERSIONS.md
-docker compose up -d qdrant                       # optional; else local mode (qdrant.url: "")
+python scripts/inspect_docx_styles.py             # style histogram → data/processed/style_report.md
+docker compose up -d qdrant                       # default; else local mode (qdrant.url: "")
+python -m src.ingest.chunker                      # parse + chunk only (+ parse_report.md)
+python scripts/sample_chunks.py                   # data/processed/chunk_samples.md
 python -m src.index.build_index --rebuild         # parse → chunk → embed → index
 python -m src.generation.llm --list               # model IDs available to your keys
 streamlit run app/streamlit_app.py
+python -m eval.make_testset_review                # eval/testset_review.md
 python -m eval.run_retrieval_eval --all-ablations
 python -m eval.run_generation_eval --provider gemini --configs best,baseline,no_hybrid,no_reranker,no_routing
+python -m eval.measure_latency                    # real latency (no reranker cache)
 python -m eval.make_report
 pytest -q && ruff check . && ruff format --check .
 ```

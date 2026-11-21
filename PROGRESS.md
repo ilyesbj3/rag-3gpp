@@ -20,7 +20,7 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 | 8 | Test set draft + review file | done (unverified) | feat(eval) |
 | 9 | Retrieval eval + gate calibration | done (preliminary) | feat(eval) retrieval |
 | 10 | Generation eval + report | done (preliminary) | feat(eval) generation |
-| 11 | README + presentation + architecture | todo | |
+| 11 | README + presentation + architecture | done | docs |
 | 12 | Bonuses | todo | |
 
 ## Phase 1–2 (summary)
@@ -164,6 +164,13 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
   retried on resume (x-03 was initially unparsed).
 - Per-minute limits are handled by 65 s cool-downs (`--cooldowns`, default 5); per-day
   limits stop the run, which resumes from the cache when re-launched.
+
+## Phase 11 — docs
+- README: install (lock file), `.env`, corpus, Docker / local Qdrant, build time, app, eval,
+  results tables (preliminary), re-run instructions, choices, limitations, perspectives,
+  references. `docs/architecture.md` (mermaid offline/online diagrams + module map),
+  `docs/presentation_outline.md` (16 slides with numbers). Makefile and CLAUDE.md §15
+  commands synced.
 
 ## Open issues
 - none
