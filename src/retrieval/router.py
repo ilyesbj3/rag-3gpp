@@ -1,0 +1,103 @@
+"""Rule-based query routing by specification (CLAUDE.md §8.1).
+
+Each matching signal adds its weight to the spec's score. Decision:
+explicit spec mention > explicit cross-cutting phrase > one spec dominates (score >= 2x the
+other and >= 1) > both specs (also when there is no signal at all).
+"""
+
+from __future__ import annotations
+
+import re
+
+from src.schemas import RouteDecision
+
+TS23 = "TS 23.501"
+TS24 = "TS 24.501"
+BOTH = {TS23, TS24}
+
+_I = re.IGNORECASE
+
+_NAS_VERB = r"(?:request|accept|reject|command|complete)"
+_NAS_PROC = (
+    r"(?:de-?registration|registration|service|authentication|security mode|identity|"
+    r"configuration update|pdu session (?:establishment|modification|release)|notification)"
+)
+
+# (pattern, weight). Patterns run on the original question, case-insensitively.
+SIGNALS_24: list[tuple[re.Pattern[str], float]] = [
+    (re.compile(r"cause\s*(?:value\s*)?#?\s*\d+", _I), 3),
+    (re.compile(r"\bcause values?\b", _I), 2),
+    (re.compile(r"\b5g(?:mm|sm)\b", _I), 2),
+    (re.compile(r"\bnas\b", _I), 1),
+    (re.compile(r"\bt3\d{3}\b", _I), 3),
+    (re.compile(r"\binformation elements?\b|\bies?\b", _I), 2),
+    (re.compile(rf"\b{_NAS_PROC}\s+{_NAS_VERB}\b", _I), 2),
+    (re.compile(r"\bmessage type\b", _I), 2),
+    (re.compile(r"\boctets?\b", _I), 2),
+    (re.compile(r"\b(?:en)?coding\b|\bcoded\b", _I), 1),
+    (re.compile(r"\bbits?\b", _I), 1),
+    (re.compile(r"\bstage[ -]?3\b", _I), 2),
+    (re.compile(r"\bmessages?\b", _I), 0.5),
+]
+
+_NF = r"\b(?:amf|smf|upf|pcf|udm|udr|ausf|nssf|nef|nrf|af|scp|sepp|nwdaf)\b"
+_ARCH_CONTEXT = r"\b(?:role|function|functionalit|responsib|architecture|purpose|what is|what does)"
+
+SIGNALS_23: list[tuple[re.Pattern[str], float]] = [
+    (re.compile(r"\breference points?\b", _I), 2),
+    (re.compile(r"\bservice-based\b|\bsba\b", _I), 2),
+    (re.compile(r"\barchitecture\b", _I), 2),
+    (re.compile(r"\bqos\b", _I), 1),
+    (re.compile(r"\b5qi\b", _I), 2),
+    (re.compile(r"\bqos flows?\b", _I), 1),
+    (re.compile(r"\barp\b|\bgbr\b", _I), 1),
+    (re.compile(r"\bnetwork slic", _I), 2),
+    (re.compile(r"\bs-?nssai\b|\bnssai\b", _I), 1),
+    (re.compile(r"\broaming\b", _I), 1),
+    (re.compile(r"\bhome[- ]routed\b|\blocal breakout\b", _I), 2),
+    (re.compile(r"\bedge computing\b", _I), 2),
+    (re.compile(r"\bssc mode|\bsession and service continuity\b", _I), 2),
+    (re.compile(r"\bregistration area\b", _I), 1),
+    (re.compile(r"\bstage[ -]?2\b", _I), 2),
+    (re.compile(r"\bdeployment", _I), 1),
+    (re.compile(r"\bnetwork functions?\b", _I), 2),
+]
+
+CROSS_PHRASES = [
+    re.compile(r"procedure and the (?:nas )?messages", _I),
+    re.compile(r"\bend-to-end\b", _I),
+    re.compile(r"architecture and signall?ing", _I),
+    re.compile(r"\b(?:stage 2 and stage 3|both specifications|both specs)\b", _I),
+]
+_UE_AMF = re.compile(r"between the ue and the amf", _I)
+_PROCEDURE = re.compile(r"\bprocedure", _I)
+
+
+def _nf_role_score(q: str) -> float:
+    """Network function names count for TS 23.501 only when asked about role/architecture."""
+    if re.search(_NF, q, _I) and re.search(_ARCH_CONTEXT, q, _I):
+        return 2.0
+    return 0.0
+
+
+def route(question: str, use_routing: bool = True) -> RouteDecision:
+    """Decide which spec(s) to search for `question`."""
+    if not use_routing:
+        return RouteDecision(specs=set(BOTH), reason="routing disabled")
+    q = question
+    mentions = {TS23} if re.search(r"23\.501", q) else set()
+    if re.search(r"24\.501", q):
+        mentions.add(TS24)
+    s24 = sum(w for rx, w in SIGNALS_24 if rx.search(q))
+    s23 = sum(w for rx, w in SIGNALS_23 if rx.search(q)) + _nf_role_score(q)
+    scores = {TS23: s23, TS24: s24}
+    if mentions:
+        return RouteDecision(specs=mentions, reason="explicit spec mention", scores=scores)
+    if any(rx.search(q) for rx in CROSS_PHRASES) or (_UE_AMF.search(q) and _PROCEDURE.search(q)):
+        return RouteDecision(specs=set(BOTH), reason="cross-spec phrase", scores=scores)
+    if s24 >= 1 and s24 >= 2 * s23:
+        return RouteDecision(specs={TS24}, reason="NAS / stage 3 signals", scores=scores)
+    if s23 >= 1 and s23 >= 2 * s24:
+        return RouteDecision(specs={TS23}, reason="architecture / stage 2 signals", scores=scores)
+    reason = "no signal" if s23 == s24 == 0 else "mixed signals"
+    return RouteDecision(specs=set(BOTH), reason=reason, scores=scores)
