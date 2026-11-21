@@ -83,9 +83,18 @@ def run_config(
 ) -> dict[str, dict[str, Any]]:
     path = cache_path(name, provider)
     rows = load_cache(path)
+    llm = None
+    overrides = {**overrides_for(name)}
+    if provider == "ollama":  # local model (bonus): not part of the Gemini -> Grok chain
+        from src.generation.local_llm import build_local_llm
+
+        llm = build_local_llm(base.settings.llm.temperature, base.settings.llm.max_tokens)
+    else:
+        overrides["llm"] = {"provider": provider}
     pipe = RAGPipeline(
         base.settings,
-        overrides={**overrides_for(name), "llm": {"provider": provider}},
+        llm=llm,
+        overrides=overrides,
         dense=base.dense,
         sparse=base.sparse,
         rerank_fn=reranker,
@@ -109,7 +118,7 @@ def run_config(
             save_cache(path, rows)
             if ans.llm_provider:
                 time.sleep(sleep_s)
-        if judge and "judge" not in row:
+        if judge and (row.get("judge") or {}).get("correctness") is None:
             ans = Answer.model_validate(row["answer"])
             context = build_user_prompt(it["question"], ans.sources) if ans.sources else ""
             try:
@@ -175,12 +184,13 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser(description="Generation evaluation (resumable)")
-    ap.add_argument("--provider", choices=["gemini", "grok"], default="gemini")
+    ap.add_argument("--provider", choices=["gemini", "grok", "ollama"], default="gemini")
     ap.add_argument("--configs", default="best,baseline,no_hybrid,no_reranker,no_routing")
     ap.add_argument("--judge-provider", choices=["gemini", "grok"], default="gemini")
     ap.add_argument("--no-judge", action="store_true")
-    ap.add_argument("--sleep", type=float, default=2.0, help="pause between LLM calls (s)")
+    ap.add_argument("--sleep", type=float, default=6.0, help="pause between LLM calls (s)")
     ap.add_argument("--limit", type=int, help="only the first N items (debug)")
+    ap.add_argument("--cooldowns", type=int, default=5, help="65 s waits on rate limits")
     ap.add_argument("--testset", type=Path, default=TESTSET_PATH)
     ap.add_argument("--tag", default="", help="suffix for output files (bonus experiments)")
     ap.add_argument("--embedding-model", help="override embedding.model (index must exist)")
@@ -195,21 +205,40 @@ def main(argv: list[str] | None = None) -> int:
     items = items[: args.limit] if args.limit else items
     base = RAGPipeline(settings)
     reranker = CachedReranker(settings.reranker.model, settings.reranker.max_length)
-    judge_llm = None if args.no_judge else build_llm(force=args.judge_provider)
+    judge_llm = (
+        None
+        if args.no_judge
+        else build_llm(force=args.judge_provider, temperature=0, max_tokens=settings.llm.max_tokens)
+    )
 
     summaries, stopped = [], None
     for name in names:
         print(f"[{name}] {describe(name)} with {args.provider} ...", flush=True)
-        try:
-            rows = run_config(
-                name, args.provider, items, base, reranker, judge_llm, args.sleep, not args.no_judge
-            )
-        except QuotaExhausted as e:
-            stopped = str(e)
-            print(f"   STOPPED (quota/rate limit): {stopped}")
-            rows = load_cache(cache_path(name, args.provider))
-        finally:
-            reranker.save()
+        for attempt in range(args.cooldowns + 1):
+            try:
+                rows = run_config(
+                    name,
+                    args.provider,
+                    items,
+                    base,
+                    reranker,
+                    judge_llm,
+                    args.sleep,
+                    not args.no_judge,
+                )
+                break
+            except QuotaExhausted as e:
+                reranker.save()
+                if attempt < args.cooldowns:  # per-minute quota: wait and resume
+                    print(
+                        f"   rate limited ({str(e).splitlines()[0]}); cooling down 65 s", flush=True
+                    )
+                    time.sleep(65)
+                    continue
+                stopped = str(e).splitlines()[0]
+                print(f"   STOPPED (quota/rate limit): {stopped}")
+                rows = load_cache(cache_path(name, args.provider))
+        reranker.save()
         s = summarize(name, args.provider, rows, items)
         summaries.append(s)
         print(

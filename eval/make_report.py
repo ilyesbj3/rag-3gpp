@@ -322,6 +322,47 @@ def generation_section(provider: str, prelim: str) -> tuple[list[str], list[str]
     return out, summary
 
 
+def latency_section() -> list[str]:
+    rows = read_csv(RESULTS_DIR / "latency.csv")
+    if not rows:
+        return []
+    out = ["### Real end-to-end latency (CPU laptop, no reranker cache)", ""]
+    out += md_table(
+        [
+            "Config",
+            "n",
+            "LLM",
+            "total mean (s)",
+            "total max (s)",
+            "dense (s)",
+            "rerank (s)",
+            "LLM (s)",
+        ],
+        [
+            [
+                r["config"],
+                r["n"],
+                r["model"],
+                r["total_mean_s"],
+                r["total_max_s"],
+                r["dense_mean_s"],
+                r["rerank_mean_s"],
+                r["llm_mean_s"],
+            ]
+            for r in rows
+        ],
+    )
+    out += [
+        "",
+        "The latency columns of the generation table above reuse cached reranker scores "
+        "(`eval/results/raw/rerank_cache.json`) and therefore exclude the cross-encoder "
+        "compute; this table (`python -m eval.measure_latency`) shows what an app user "
+        "waits for on CPU.",
+        "",
+    ]
+    return out
+
+
 def load_gen(config: str, provider: str) -> dict[str, dict]:
     p = RAW_DIR / f"gen_{config}_{provider}.jsonl"
     if not p.exists():
@@ -458,6 +499,7 @@ def main() -> int:
             L += gtab + ["", f"![generation {provider}](figures/generation_{provider}.png)", ""]
     if not gsum_all:
         L += ["_Generation evaluation not run yet._", ""]
+    L += latency_section()
     L += qualitative_section("gemini") + failure_section("gemini")
     (RESULTS_DIR / "REPORT.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("Wrote", RESULTS_DIR / "REPORT.md")
