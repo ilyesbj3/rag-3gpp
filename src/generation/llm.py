@@ -215,7 +215,8 @@ def _list_models() -> None:
     if os.getenv("GEMINI_API_KEY"):
         from google import genai
         print("Gemini models supporting generateContent:")
-        for m in genai.Client().models.list():
+        client = genai.Client()  # keep a reference: the client closes when collected
+        for m in client.models.list():
             if "generateContent" in (m.supported_actions or []):
                 print("  ", m.name.removeprefix("models/"))
     if os.getenv("XAI_API_KEY"):

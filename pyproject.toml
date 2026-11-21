@@ -53,6 +53,8 @@ select = ["E", "F", "W", "I", "B", "UP"]
 [tool.ruff.lint.per-file-ignores]
 # Appendix A of CLAUDE.md is copied verbatim; keep its original layout.
 "src/generation/llm.py" = ["E501", "UP", "B"]
+# System prompt kept verbatim from CLAUDE.md §9.1.
+"src/generation/prompts.py" = ["E501"]
 
 [tool.ruff.format]
 exclude = ["src/generation/llm.py"]

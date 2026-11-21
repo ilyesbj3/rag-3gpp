@@ -222,7 +222,7 @@ reranker:
 llm:
   provider: "auto"          # auto (gemini→grok) | gemini | grok
   temperature: 0
-  max_tokens: 1024
+  max_tokens: 8192          # gemini-3.x "thinking" tokens count against this budget
 seed: 42
 ```
 
@@ -953,7 +953,8 @@ def _list_models() -> None:
     if os.getenv("GEMINI_API_KEY"):
         from google import genai
         print("Gemini models supporting generateContent:")
-        for m in genai.Client().models.list():
+        client = genai.Client()  # keep a reference: the client closes when collected
+        for m in client.models.list():
             if "generateContent" in (m.supported_actions or []):
                 print("  ", m.name.removeprefix("models/"))
     if os.getenv("XAI_API_KEY"):
@@ -989,7 +990,7 @@ only one key exists. Re-create these as `tests/test_llm_fallback.py` (no network
 ```
 # Primary LLM: Google Gemini  (key: https://aistudio.google.com/apikey)
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODEL=gemini-3.5-flash   # gemini-flash-latest / gemini-2.5-flash no longer served (Nov 2026)
 
 # Fallback LLM: xAI Grok  (key: https://console.x.ai)
 XAI_API_KEY=
