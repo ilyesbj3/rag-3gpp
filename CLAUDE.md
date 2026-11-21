@@ -244,13 +244,41 @@ the paragraph-style histogram. 3GPP templates typically use:
 Adapt the parser to what is actually found and record the findings in
 `data/processed/parse_report.md`.
 
+**Findings from the actual docx files (phase 2, `data/processed/style_report.md`):**
+- One `.docx` per zip: `23501-ic0.docx` (cover `3GPP TS 23.501 V18.12.0 (2025-12)`, 11,436 body
+  paragraphs, 57 tables) and `24501-ie0.docx` (cover `3GPP TS 24.501 V18.14.0 (2026-09)`,
+  18,178 body paragraphs, 544 tables). Cover-page `ZA/ZB/ZT/ZV` paragraphs live **inside
+  tables**, not in the body → skip everything before the `1\tScope` heading.
+- Heading styles found: `Heading 1`–`Heading 8` (24.501 uses up to `Heading 7`) **plus the
+  custom styles `H6` (both specs) and `H2` (24.501, clauses 4.21/4.22)**. Detect headings with
+  style names matching `^(Heading \d|H\d)$`. Style names are lowercase `toc 1`…`toc 8` for ToC.
+- **The heading level must come from the section number depth, not the style**: annex
+  sub-clauses (`A.1`, `D.2`, …) use `Heading 1`.
+- **Section numbers can carry a letter suffix** on any component: `4.2.5a`, `5.35A.1`,
+  `6.2.9A`, `5.4.1.2.2.6A`, `9.11.2.1B` (~60 headings per spec). Number and title are separated
+  by one or two TABs.
+- Annex titles (`Heading 8`) use a **line break, not a TAB**: `Annex A (informative):\nCause
+  values for 5GS mobility management`. Change-history annexes: TS 23.501 Annex R, TS 24.501
+  Annex F (skip). TS 24.501 Annex E is `Void`.
+- **TS 24.501 has a duplicated clause number in the spec itself**: `8.2.6.35 Paging
+  restriction` and `8.2.6.35 Service-level-AA container`. The chunker must keep them as
+  separate chunks with distinct `chunk_id`s (see §5.5).
+- Other styles: `EW` = abbreviation/definition term lines, `EX` = reference list entries,
+  `NO`/`NF` notes, `TH`/`TF` table/figure titles, `TAL/TAC/TAR/TAH/TAN` table cells, `PL`
+  code (24.501 only), `FP` figure placeholders (empty), `Editor's Note` (23.501), `TT`
+  "Contents" title. In 24.501 Annex A, cause values are `Normal` paragraphs like
+  `Cause #9 – UE identity cannot be derived by the network.` under `A.1`.
+
 ### 5.2 `parse_docx.py`
 - Iterate the document body **in order**, yielding paragraphs and tables (walk
   `document.element.body` children, `w:p` and `w:tbl`).
-- Detect headings by style name (`Heading N`) and parse `section_number` + `title` with a
-  regex: `^(?P<num>(?:[A-Z]\.)?\d+(?:\.\d+)*)\s+(?P<title>.+)$` after replacing TABs with
-  spaces. Annex: `^Annex (?P<letter>[A-Z])\s*\((normative|informative)\):\s*(?P<title>.+)$`
-  → section `A`, and annex sub-clauses look like `A.1`, `A.2.3`.
+- Detect headings by style name (`Heading N` or custom `HN`) and parse `section_number` +
+  `title` with a regex:
+  `^(?P<num>(?:[A-Z]\.)?\d+[A-Za-z]?(?:\.\d+[A-Za-z]?)*)\s+(?P<title>.+)$` after replacing
+  TABs and line breaks with spaces (letter suffixes like `5.35A.1` are real clause numbers).
+  Annex: `^Annex (?P<letter>[A-Z])\s*\((normative|informative)\):\s*(?P<title>.+)$`
+  → section `A`, and annex sub-clauses look like `A.1`, `A.2.3`. Heading depth = number of
+  dot-separated components (annex letter counts as one).
 - Maintain a heading stack to compute `breadcrumb` (list of ancestor section numbers) and
   `parent_titles`.
 - Skip: cover page, Foreword, ToC (`TOC*` styles), "Change history" annex, empty paragraphs,
@@ -299,7 +327,10 @@ Adapt the parser to what is actually found and record the findings in
 
 ### 5.5 Ingestion acceptance checks (must pass before indexing)
 - Both specs produce chunks; no chunk with empty `section` except explicitly tagged ones.
-- Section numbers are unique per (spec, section, part).
+- `chunk_id`s are unique. Section numbers are unique per (spec, section, part), except where
+  the spec itself repeats a clause number (TS 24.501 `8.2.6.35` appears twice): the second
+  occurrence continues the part numbering of the first, so citations stay `[TS 24.501 §8.2.6.35]`
+  and ids stay unique. List such duplicates in the parse report.
 - Spot-check by grep that these exist: in 24.501 the 5GMM cause values annex (Annex A) with
   cause #9; timer tables (T3510, T3502…); the REGISTRATION REQUEST message definition
   (clause 8.2.x); in 23.501 the AMF/SMF/UPF function clauses (6.2.x), 5QI table (5.7.4),
@@ -317,7 +348,8 @@ Telecom terms must survive tokenization. Rules:
    - cause numbers: `#\d+` → `cause_9` style token (also emit `#9` → `cause_9` for queries
      like "cause #9" and "cause 9": when the word "cause" is followed by a number, emit `cause_<n>`)
    - timers: `t\d{4}` (T3510, T3346) kept whole
-   - section refs: `\d+(\.\d+)+` kept whole (e.g. `5.5.1.2.4`)
+   - section refs: `\d+[a-z]?(\.\d+[a-z]?)+` kept whole (e.g. `5.5.1.2.4`, `5.35a.1` after
+     lowercasing)
    - hyphenated/alnum acronyms: `s-nssai`, `5gmm`, `5gsm`, `5g-guti`, `n1`, `n11`, `pdu`,
      `suci`, `supi`, `nssai`, `5qi`, `amf`, `smf`, `upf`… kept whole; ALSO emit the
      de-hyphenated variant (`s-nssai` → `s-nssai`, `snssai`).
@@ -467,7 +499,9 @@ to the user's keys — model names change often, never hard-code them elsewhere.
 Each `LLMResponse` carries `provider`, `model`, `fallback_used` — propagate them to `Answer`.
 
 ### 9.3 Citation check (`citation_check.py`)
-- Extract citations with regex `\[TS\s?(\d{2}\.\d{3})\s?§\s?([A-Z]?\d*(?:\.\d+)*)\]`
+- Extract citations with regex
+  `\[TS\s?(\d{2}\.\d{3})\s?§\s?((?:[A-Z]\.)?\d+[A-Za-z]?(?:\.\d+[A-Za-z]?)*|[A-Z])\]`
+  (section numbers may carry letter suffixes such as `5.35A.1`; a bare annex letter is allowed)
   (also tolerate `§ ` and `Section`; normalize).
 - `valid` = cited (spec, section) is among the context labels (exact match, or the cited
   section is an ancestor of a provided section → count as "loose-valid", report separately).

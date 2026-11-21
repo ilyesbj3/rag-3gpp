@@ -1,6 +1,6 @@
 services:
   qdrant:
-    image: qdrant/qdrant:v1.12.4   # pinned for reproducibility
+    image: qdrant/qdrant:v1.20.0   # pinned; matches qdrant-client 1.20 in requirements.lock
     container_name: rag3gpp-qdrant
     ports:
       - "6333:6333"
