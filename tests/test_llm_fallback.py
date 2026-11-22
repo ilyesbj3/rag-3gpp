@@ -129,3 +129,67 @@ def test_groq_only_key(no_keys):
     no_keys.setenv("GROQ_API_KEY", "dummy-key-for-test")
     assert [p.name for p in build_llm().providers] == ["groq"]
     assert [p.name for p in build_llm(force="groq").providers] == ["groq"]
+
+
+# ----------------------------------------------------------------------------- rate limits
+def test_rate_limit_waits_retry_after_instead_of_backoff(monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr(llm_mod.time, "sleep", slept.append)
+    g = FakeProvider("groq", [ProviderError("429", transient=True, retry_after=42.0), "ok"])
+    res = FallbackLLM([g], max_retries=2, backoff_s=1.5).generate("sys", "user")
+    assert res.text == "ok"
+    assert slept == [42.5]  # Retry-After honoured (+0.5 s margin), not 1.5 s backoff
+
+
+def test_rate_limit_longer_than_max_wait_falls_back_immediately(monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr(llm_mod.time, "sleep", slept.append)
+    daily = ProviderError("429 daily quota", transient=True, retry_after=23000.0)
+    g = FakeProvider("gemini", [daily])
+    x = FakeProvider("groq", ["from groq"])
+    res = FallbackLLM([g, x], max_retries=2, max_wait_s=90).generate("sys", "user")
+    assert res.provider == "groq" and res.fallback_used
+    assert slept == [] and g.calls == 1
+
+
+def test_transient_without_retry_after_keeps_backoff(monkeypatch):
+    slept: list[float] = []
+    monkeypatch.setattr(llm_mod.time, "sleep", slept.append)
+    g = FakeProvider("gemini", [transient(), transient(), "ok"])
+    FallbackLLM([g], max_retries=2, backoff_s=1.5).generate("sys", "user")
+    assert slept == [1.5, 3.0]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Please try again in 8.9325s. Need more tokens?", 8.9325),
+        ("Rate limit reached... try again in 1m2.5s", 62.5),
+        ("Please retry in 59.755569523s.", 59.755569523),
+        ("try again in 585ms", 0.585),
+        ("no hint here", None),
+    ],
+)
+def test_retry_after_parsing(text, expected):
+    got = llm_mod.retry_after_seconds(text)
+    assert got == pytest.approx(expected) if expected is not None else got is None
+
+
+def test_groq_provider_maps_429_with_retry_after_header(no_keys):
+    import httpx
+    import openai
+
+    no_keys.setenv("GROQ_API_KEY", "dummy-key-for-test")
+    prov = llm_mod.GroqProvider("m", temperature=0, max_tokens=10, timeout_s=5)
+    response = httpx.Response(
+        429, headers={"retry-after": "7"}, request=httpx.Request("POST", "https://example.test")
+    )
+
+    class Boom:
+        def create(self, **kw):
+            raise openai.RateLimitError("rate limited", response=response, body=None)
+
+    prov._client = type("C", (), {"chat": type("Ch", (), {"completions": Boom()})()})()
+    with pytest.raises(ProviderError) as info:
+        prov.complete("sys", "user")
+    assert info.value.transient and info.value.retry_after == 7.0

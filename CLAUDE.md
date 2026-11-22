@@ -773,6 +773,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -806,11 +807,32 @@ class LLMResponse:
 
 
 class ProviderError(RuntimeError):
-    """Raised by a provider when it cannot produce an answer."""
+    """Raised by a provider when it cannot produce an answer.
 
-    def __init__(self, msg: str, transient: bool):
+    `retry_after` (seconds) is set on rate limits when the API says how long to wait."""
+
+    def __init__(self, msg: str, transient: bool, retry_after: float | None = None):
         super().__init__(msg)
         self.transient = transient
+        self.retry_after = retry_after
+
+
+def retry_after_seconds(text: str, headers=None) -> float | None:
+    """Wait time from a `Retry-After` header or from messages such as
+    "Please try again in 8.93s", "try again in 1m2.5s", "Please retry in 59.7s"."""
+    if headers is not None:
+        value = headers.get("retry-after")
+        if value:
+            try:
+                return float(value)
+            except ValueError:
+                pass
+    m = re.search(r"(?:try|retry)(?: again)? in (?:(\d+)m)?([\d.]+)(ms|s)(?![a-z])", text)
+    if not m:
+        return None
+    minutes, value, unit = m.groups()
+    secs = float(value) / 1000 if unit == "ms" else float(value)
+    return secs + 60 * int(minutes or 0)
 
 
 class LLMProvider(Protocol):
@@ -854,7 +876,8 @@ class GeminiProvider:
             )
         except errors.APIError as e:
             transient = e.code in (408, 429) or (e.code or 0) >= 500
-            raise ProviderError(f"Gemini {e.code}: {e.message}", transient) from e
+            wait = retry_after_seconds(str(e)) if e.code == 429 else None
+            raise ProviderError(f"Gemini {e.code}: {e.message}", transient, wait) from e
         except Exception as e:  # network errors, timeouts
             raise ProviderError(f"Gemini error: {e!r}", transient=True) from e
 
@@ -895,8 +918,11 @@ class GrokProvider:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
-        except (openai.RateLimitError, openai.APITimeoutError,
-                openai.APIConnectionError, openai.InternalServerError) as e:
+        except openai.RateLimitError as e:  # honour Retry-After instead of a short backoff
+            wait = retry_after_seconds(str(e), getattr(e.response, "headers", None))
+            raise ProviderError(f"{self.LABEL} rate limited: {e!r}", True, wait) from e
+        except (openai.APITimeoutError, openai.APIConnectionError,
+                openai.InternalServerError) as e:
             raise ProviderError(f"{self.LABEL} transient error: {e!r}", transient=True) from e
         except openai.APIError as e:
             raise ProviderError(f"{self.LABEL} error: {e!r}", transient=False) from e
@@ -922,12 +948,13 @@ class FallbackLLM:
     retries, moves on to the next provider."""
 
     def __init__(self, providers: list[LLMProvider], max_retries: int = 2,
-                 backoff_s: float = 1.5):
+                 backoff_s: float = 1.5, max_wait_s: float = 90.0):
         if not providers:
             raise ValueError("No LLM provider could be initialised (check API keys).")
         self.providers = providers
         self.max_retries = max_retries
         self.backoff_s = backoff_s
+        self.max_wait_s = max_wait_s  # longer waits (e.g. daily quota) -> next provider
 
     def generate(self, system: str, user: str) -> LLMResponse:
         errors: list[str] = []
@@ -946,7 +973,12 @@ class FallbackLLM:
                     log.warning("%s failed: %s", p.name, e)
                     if not e.transient or attempt == self.max_retries:
                         break
-                    time.sleep(self.backoff_s * (2 ** attempt))
+                    if e.retry_after is not None:  # rate limit: wait as long as asked
+                        if e.retry_after > self.max_wait_s:
+                            break
+                        time.sleep(e.retry_after + 0.5)
+                    else:
+                        time.sleep(self.backoff_s * (2 ** attempt))
             log.warning("Falling back from %s", p.name)
         raise RuntimeError("All LLM providers failed:\n" + "\n".join(errors))
 
