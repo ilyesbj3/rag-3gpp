@@ -1,10 +1,10 @@
-"""LLM layer: Gemini as primary provider, Grok (xAI) as automatic fallback.
+"""LLM layer: Gemini as primary provider, Groq then Grok (xAI) as automatic fallbacks.
 
 Usage
 -----
     from src.generation.llm import build_llm
 
-    llm = build_llm()                      # Gemini -> Grok fallback
+    llm = build_llm()                      # Gemini -> Groq -> Grok fallback
     res = llm.generate(system_prompt, user_prompt)
     print(res.text, res.provider, res.fallback_used)
 
@@ -13,8 +13,10 @@ Usage
 Environment variables (.env)
 ----------------------------
     GEMINI_API_KEY=...
+    GROQ_API_KEY=...                     # free tier, https://console.groq.com
     XAI_API_KEY=...
     GEMINI_MODEL=gemini-flash-latest     # optional override
+    GROQ_MODEL=openai/gpt-oss-120b       # optional override
     GROK_MODEL=grok-4.7                  # optional override
     LLM_TIMEOUT_S=60                     # optional
     LLM_MAX_RETRIES=2                    # retries per provider on transient errors
@@ -39,6 +41,7 @@ REFUSAL = "I could not find this information in the documents."
 DEFAULTS = {
     "gemini_model": os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
     "grok_model": os.getenv("GROK_MODEL", "grok-4.7"),
+    "groq_model": os.getenv("GROQ_MODEL") or "openai/gpt-oss-120b",
     "temperature": float(os.getenv("LLM_TEMPERATURE", "0")),
     "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "1024")),
     "timeout_s": float(os.getenv("LLM_TIMEOUT_S", "60")),
@@ -120,13 +123,15 @@ class GeminiProvider:
 class GrokProvider:
     name = "grok"
     BASE_URL = "https://api.x.ai/v1"
+    KEY_ENV = "XAI_API_KEY"
+    LABEL = "Grok"
 
     def __init__(self, model: str, temperature: float, max_tokens: int, timeout_s: float):
         from openai import OpenAI
 
-        api_key = os.getenv("XAI_API_KEY")
+        api_key = os.getenv(self.KEY_ENV)
         if not api_key:
-            raise ProviderError("XAI_API_KEY is not set", transient=False)
+            raise ProviderError(f"{self.KEY_ENV} is not set", transient=False)
         self._client = OpenAI(api_key=api_key, base_url=self.BASE_URL,
                               timeout=timeout_s, max_retries=0)  # we retry ourselves
         self.model = model
@@ -146,14 +151,23 @@ class GrokProvider:
             )
         except (openai.RateLimitError, openai.APITimeoutError,
                 openai.APIConnectionError, openai.InternalServerError) as e:
-            raise ProviderError(f"Grok transient error: {e!r}", transient=True) from e
+            raise ProviderError(f"{self.LABEL} transient error: {e!r}", transient=True) from e
         except openai.APIError as e:
-            raise ProviderError(f"Grok error: {e!r}", transient=False) from e
+            raise ProviderError(f"{self.LABEL} error: {e!r}", transient=False) from e
 
         text = (resp.choices[0].message.content or "").strip()
         if not text:
-            raise ProviderError("Grok returned empty text", transient=False)
+            raise ProviderError(f"{self.LABEL} returned empty text", transient=False)
         return text
+
+
+class GroqProvider(GrokProvider):
+    """Groq (free tier): same OpenAI-compatible client, different endpoint and key."""
+
+    name = "groq"
+    BASE_URL = "https://api.groq.com/openai/v1"
+    KEY_ENV = "GROQ_API_KEY"
+    LABEL = "Groq"
 
 
 class FallbackLLM:
@@ -192,15 +206,17 @@ class FallbackLLM:
 
 
 def build_llm(force: str | None = None, **overrides) -> FallbackLLM:
-    """Build the Gemini -> Grok chain. `force="gemini"` or `force="grok"` uses one only."""
+    """Build the Gemini -> Groq -> Grok chain (providers without a key are skipped).
+    `force="gemini"`, `force="groq"` or `force="grok"` uses one only."""
     cfg = {**DEFAULTS, **overrides}
     common = dict(temperature=cfg["temperature"], max_tokens=cfg["max_tokens"],
                   timeout_s=cfg["timeout_s"])
     factories = {
         "gemini": lambda: GeminiProvider(cfg["gemini_model"], **common),
+        "groq": lambda: GroqProvider(cfg["groq_model"], **common),
         "grok": lambda: GrokProvider(cfg["grok_model"], **common),
     }
-    order = [force] if force else ["gemini", "grok"]
+    order = [force] if force else ["gemini", "groq", "grok"]
 
     providers: list[LLMProvider] = []
     for name in order:
@@ -219,12 +235,13 @@ def _list_models() -> None:
         for m in client.models.list():
             if "generateContent" in (m.supported_actions or []):
                 print("  ", m.name.removeprefix("models/"))
-    if os.getenv("XAI_API_KEY"):
-        from openai import OpenAI
-        print("Grok models:")
-        for m in OpenAI(api_key=os.getenv("XAI_API_KEY"),
-                        base_url=GrokProvider.BASE_URL).models.list():
-            print("  ", m.id)
+    for prov in (GroqProvider, GrokProvider):
+        if os.getenv(prov.KEY_ENV):
+            from openai import OpenAI
+            print(f"{prov.LABEL} models:")
+            for m in OpenAI(api_key=os.getenv(prov.KEY_ENV),
+                            base_url=prov.BASE_URL).models.list():
+                print("  ", m.id)
 
 
 if __name__ == "__main__":
@@ -233,7 +250,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", action="store_true", help="list available model IDs")
-    ap.add_argument("--force", choices=["gemini", "grok"])
+    ap.add_argument("--force", choices=["gemini", "groq", "grok"])
     ap.add_argument("--q", default="In one sentence, what is the AMF in 5G?")
     a = ap.parse_args()
     if a.list:

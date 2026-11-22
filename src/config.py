@@ -89,7 +89,7 @@ class RerankerConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    provider: Literal["auto", "gemini", "grok"] = "auto"
+    provider: Literal["auto", "gemini", "groq", "grok"] = "auto"
     temperature: float = 0.0
     max_tokens: int = 1024
 

@@ -91,7 +91,7 @@ def test_runtime_error_when_all_fail():
 
 @pytest.fixture
 def no_keys(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY"):
+    for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY", "GROQ_API_KEY"):
         monkeypatch.delenv(var, raising=False)
     return monkeypatch
 
@@ -113,3 +113,19 @@ def test_force_selects_one_provider(no_keys):
     no_keys.setenv("XAI_API_KEY", "dummy-key-for-test")
     assert [p.name for p in build_llm(force="grok").providers] == ["grok"]
     assert [p.name for p in build_llm().providers] == ["gemini", "grok"]
+
+
+def test_groq_is_second_in_the_chain(no_keys):
+    for var in ("GEMINI_API_KEY", "GROQ_API_KEY", "XAI_API_KEY"):
+        no_keys.setenv(var, "dummy-key-for-test")
+    chain = build_llm()
+    assert [p.name for p in chain.providers] == ["gemini", "groq", "grok"]
+    groq = chain.providers[1]
+    assert groq.BASE_URL == "https://api.groq.com/openai/v1"
+    assert groq.model == llm_mod.DEFAULTS["groq_model"]
+
+
+def test_groq_only_key(no_keys):
+    no_keys.setenv("GROQ_API_KEY", "dummy-key-for-test")
+    assert [p.name for p in build_llm().providers] == ["groq"]
+    assert [p.name for p in build_llm(force="groq").providers] == ["groq"]

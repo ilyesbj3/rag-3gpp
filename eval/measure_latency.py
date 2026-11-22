@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--configs", default="best,no_reranker")
-    ap.add_argument("--provider", default="gemini", choices=["gemini", "grok"])
+    ap.add_argument("--provider", default="gemini", choices=["gemini", "groq", "grok"])
     args = ap.parse_args(argv)
 
     settings = load_settings()

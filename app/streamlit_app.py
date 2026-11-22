@@ -151,8 +151,8 @@ with st.sidebar:
     routing = st.toggle("Routing by specification", value=True)
     provider = st.selectbox(
         "LLM provider",
-        ["auto", "gemini", "grok"],
-        help="auto = Gemini with automatic fallback to Grok",
+        ["auto", "gemini", "groq", "grok"],
+        help="auto = Gemini, with automatic fallback to Groq then Grok",
     )
     top_k = st.slider("Chunks given to the LLM (final top-k)", 2, 12, 6)
     st.divider()
