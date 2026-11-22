@@ -1,0 +1,3 @@
+app/web/vendor/*.js -text
+app/web/vendor/LICENSE* -text
+*.png binary
