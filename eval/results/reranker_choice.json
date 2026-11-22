@@ -1,0 +1,26 @@
+{
+ "previous": {
+  "model": "BAAI/bge-reranker-v2-m3",
+  "fused_top_n": "30",
+  "max_length": "1024",
+  "mrr": "0.7341",
+  "recall@5": "0.8519",
+  "recall@10": "0.9259",
+  "rerank_s_mean": "43.8",
+  "rerank_s_max": "46.1",
+  "retrieval_s_mean": "43.9"
+ },
+ "chosen": {
+  "model": "BAAI/bge-reranker-base",
+  "fused_top_n": "15",
+  "max_length": "512",
+  "mrr": "0.7466",
+  "recall@5": "0.8148",
+  "recall@10": "0.8519",
+  "rerank_s_mean": "3.9",
+  "rerank_s_max": "4.0",
+  "retrieval_s_mean": "4.0"
+ },
+ "summary": "BAAI/bge-reranker-base with fused_top_n=15, max_length=512: MRR 0.747 vs 0.734 for the previous default (bge-reranker-v2-m3, 30, 1024); reranking 3.9 s instead of 43.8 s per answer on this CPU. Rule: fastest setting whose MRR stays within 0.02 of the previous default. Trade-offs: recall@5 0.815 vs 0.852 (one question); bge-reranker-base is English/Chinese, not multilingual (the French bonus used bge-reranker-v2-m3).",
+ "rule": "fastest with MRR >= previous - 0.02"
+}

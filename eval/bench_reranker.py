@@ -89,6 +89,15 @@ def main(argv: list[str] | None = None) -> int:
                 rows.append(rec)
                 print(rec, flush=True)
     out = RESULTS_DIR / "reranker_bench.csv"
+    if out.exists():  # keep rows of other combinations (e.g. another reranker model)
+        with out.open(encoding="utf-8") as fh:
+            keep = [
+                r
+                for r in csv.DictReader(fh)
+                if (r["model"], int(r["fused_top_n"]), int(r["max_length"]))
+                not in {(x["model"], x["fused_top_n"], x["max_length"]) for x in rows}
+            ]
+        rows = keep + rows
     with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()

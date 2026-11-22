@@ -98,7 +98,7 @@ Chen et al. 2024 (BGE M3, arXiv:2402.03216) · Es et al. 2023 (RAGAS, arXiv:2309
 | Vector DB | Qdrant (Docker `qdrant/qdrant`, port 6333) via `qdrant-client`; local on-disk mode (`path=data/index/qdrant`) as a no-Docker fallback | cosine distance |
 | Sparse | `bm25s` with the custom tokenizer from §6 | persisted to `data/index/bm25/` |
 | Fusion | Reciprocal Rank Fusion, own code | k = 60 |
-| Reranker | `BAAI/bge-reranker-v2-m3` via `sentence_transformers.CrossEncoder` | sigmoid scores in [0,1] |
+| Reranker | `BAAI/bge-reranker-base` via `sentence_transformers.CrossEncoder` (default since the CPU benchmark; `BAAI/bge-reranker-v2-m3` for multilingual) | sigmoid scores in [0,1] |
 | LLM | **Gemini primary → Groq (free tier) → Grok (xAI) fallbacks** (`google-genai`, `openai` SDK) | code in Appendix A; providers without a key are skipped |
 | UI | FastAPI + Uvicorn backend, static HTML/CSS/JS frontend (no build step); vendored `marked` + `DOMPurify` | spec in `UI_SPEC.md` |
 | Eval | own retrieval metrics; RAGAS for faithfulness/correctness; own citation & refusal metrics | |
@@ -214,7 +214,7 @@ retrieval:
   dense_top_n: 50
   sparse_top_n: 50
   rrf_k: 60
-  fused_top_n: 30           # candidates passed to the reranker
+  fused_top_n: 15           # candidates passed to the reranker (benchmark in eval/results/reranker_bench.csv)
   final_top_k: 6            # chunks given to the LLM
   min_per_spec_when_both: 2 # quota for cross-spec questions
   use_hybrid: true
@@ -224,8 +224,8 @@ gate:
   reranker_threshold: 0.15  # calibrate on eval (§12)
   dense_threshold: 0.45     # used when reranker disabled
 reranker:
-  model: "BAAI/bge-reranker-v2-m3"
-  max_length: 1024
+  model: "BAAI/bge-reranker-base"   # chosen by the CPU benchmark (bge-reranker-v2-m3 for multilingual)
+  max_length: 512
 llm:
   provider: "auto"          # auto (gemini→grok) | gemini | grok
   temperature: 0

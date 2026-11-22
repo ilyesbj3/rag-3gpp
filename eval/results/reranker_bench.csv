@@ -1,0 +1,10 @@
+model,fused_top_n,max_length,mrr,recall@5,recall@10,rerank_s_mean,rerank_s_max,retrieval_s_mean
+BAAI/bge-reranker-v2-m3,15,512,0.7543,0.8519,0.8519,12.8,13.0,13.0
+BAAI/bge-reranker-v2-m3,20,512,0.7444,0.8519,0.9259,16.6,17.5,16.8
+BAAI/bge-reranker-v2-m3,30,512,0.7318,0.8519,0.8889,26.0,26.6,26.2
+BAAI/bge-reranker-v2-m3,15,1024,0.7528,0.8519,0.8889,23.4,24.5,23.6
+BAAI/bge-reranker-v2-m3,20,1024,0.7559,0.8519,0.9259,27.9,30.6,28.0
+BAAI/bge-reranker-v2-m3,30,1024,0.7341,0.8519,0.9259,43.8,46.1,43.9
+BAAI/bge-reranker-base,15,512,0.7466,0.8148,0.8519,3.9,4.0,4.0
+BAAI/bge-reranker-base,20,512,0.7457,0.8519,0.8889,4.9,5.3,5.0
+BAAI/bge-reranker-base,30,512,0.7265,0.8519,0.8519,7.6,8.1,7.8

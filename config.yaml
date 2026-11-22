@@ -20,7 +20,7 @@ retrieval:
   dense_top_n: 50
   sparse_top_n: 50
   rrf_k: 60
-  fused_top_n: 30           # candidates passed to the reranker
+  fused_top_n: 15           # candidates passed to the reranker (benchmark: eval/results/reranker_bench.csv)
   final_top_k: 6            # chunks given to the LLM
   min_per_spec_when_both: 2 # quota for cross-spec questions
   use_hybrid: true
@@ -32,8 +32,8 @@ gate:
   reranker_threshold: 0.45  # calibrated (eval/results/gate_choice.json, preliminary gold set)
   dense_threshold: 0.25     # calibrated; dense scores do not separate out-of-corpus questions
 reranker:
-  model: "BAAI/bge-reranker-v2-m3"
-  max_length: 1024
+  model: "BAAI/bge-reranker-base"   # was bge-reranker-v2-m3: 11x faster on CPU, MRR within 0.02
+  max_length: 512
 llm:
   provider: "auto"          # auto (gemini→groq→grok) | gemini | groq | grok
   temperature: 0
