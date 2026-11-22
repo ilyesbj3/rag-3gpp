@@ -212,8 +212,9 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 - Rel-17 generation bonus partial (quota) — resumable.
 
 ## Blocked / needs human
-- **xAI key rejected**: `Incorrect API key provided` on both models.list and chat. Grok
-  fallback and the Gemini-vs-Grok bonus cannot run until a valid `XAI_API_KEY` is set in `.env`.
+- xAI Grok: the key provided was a **Groq** key (`gsk_…`), not an xAI key. Resolved by adding
+  Groq as first fallback (`GROQ_API_KEY`, model openai/gpt-oss-120b, free tier 8,000 tokens/min
+  → ~1 RAG answer/min). A real xAI key (`xai-…`) is still needed for Grok itself.
 - Test set validation (all 30 items `verified: false`) — see `eval/testset_review.md`; all
   reported numbers are preliminary until then.
 - Gemini free-tier quotas (20 requests/day for flash models, 500/day for flash-lite) limit
