@@ -705,13 +705,18 @@ def reranker_bench_section() -> list[str]:
 
 
 def router_before_after_section() -> list[str]:
-    old = {r["config"]: r for r in read_csv(RESULTS_DIR / "router_accuracy_router_v1.csv")}
+    tag = (
+        "router_v1_same_reranker"
+        if (RESULTS_DIR / "retrieval_ablation_router_v1_same_reranker.csv").exists()
+        else "router_v1"
+    )
+    old = {r["config"]: r for r in read_csv(RESULTS_DIR / f"router_accuracy_{tag}.csv")}
     new = {r["config"]: r for r in read_csv(RESULTS_DIR / "router_accuracy.csv")}
     if "best" not in old or "best" not in new:
         return []
     ret_old = {
         (r["config"], r["group"]): r
-        for r in read_csv(RESULTS_DIR / "retrieval_ablation_router_v1.csv")
+        for r in read_csv(RESULTS_DIR / f"retrieval_ablation_{tag}.csv")
     }
     ret_new = {
         (r["config"], r["group"]): r for r in read_csv(RESULTS_DIR / "retrieval_ablation.csv")
@@ -723,7 +728,8 @@ def router_before_after_section() -> list[str]:
         '"procedure … messages" phrasing → both specs; more verbs that ask what a network '
         "function does). It was tuned **only** on `tests/test_router.py` (12 new cross-spec "
         "questions written independently of the test set, plus single-spec guards); the "
-        "evaluation set was not used for tuning. v1 = the original run.",
+        "evaluation set was not used for tuning. Both columns use the same retrieval settings "
+        "(current reranker defaults); only `retrieval.router_version` differs.",
         "",
     ]
     body = []

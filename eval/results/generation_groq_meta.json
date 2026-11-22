@@ -1,0 +1,18 @@
+{
+ "date": "2026-11-22 03:00 UTC",
+ "git_commit": "f43f5f0",
+ "corpus": {
+  "TS 23.501": "18.12.0",
+  "TS 24.501": "18.14.0"
+ },
+ "embedding_model": "BAAI/bge-m3",
+ "reranker_model": "BAAI/bge-reranker-v2-m3",
+ "status": "preliminary \u2014 gold set pending human validation",
+ "provider": "groq",
+ "judge_provider": "gemini",
+ "configs": [
+  "best"
+ ],
+ "stopped": "best/x-05: All LLM providers failed:",
+ "judge": "LLM-as-judge, rubric 0/0.5/1 (eval/metrics.py JUDGE_TEMPLATE)"
+}

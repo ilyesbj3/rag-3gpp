@@ -1,0 +1,2 @@
+config,description,provider,llm_models,n,n_expected,faithfulness,correctness,correctness_in_corpus,citation_accuracy,citation_accuracy_loose,gold_citation_recall,not_grounded_rate,refusal_precision,refusal_recall,refusal_f1,false_refusals,false_refusal_rate,latency_mean_s,latency_p95_s,fallback_rate
+best,"hybrid on, reranker on, routing on",groq,openai/gpt-oss-120b,24,30,nan,nan,nan,0.9833,0.9833,0.6667,0.2174,0.0,0.0,0.0,1.0,0.0417,23.07,50.15,0.0
