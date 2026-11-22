@@ -93,46 +93,62 @@ def seed_from_main_run(config: str, answers: str, judge: str, ans: dict) -> None
 def run_judge(
     config: str, judge: str, sleep_s: float, cooldowns: int, max_hours: float = 8.0
 ) -> None:
+    """Judge both answer sets with `judge`, interleaved per question (same question for both
+    answer sets before moving on), so a quota-limited run still yields comparable cells."""
     deadline = time.time() + max_hours * 3600  # daily token quotas free up gradually
     settings = load_settings()
     items = {it["id"]: it for it in load_testset()}
     llm = build_llm(force=judge, temperature=0, max_tokens=settings.llm.max_tokens)
+    sets, paths, done = {}, {}, {}
     for answers in ANSWER_SETS:
         ans = frozen_answers(config, answers)
         if not ans:
             print(f"[{answers}] no answer set yet, skipped")
             continue
         seed_from_main_run(config, answers, judge, ans)
-        path = judge_path(config, answers, judge)
-        done = load_judgements(path)
-        print(f"[{answers} answers × {judge} judge] {len(done)}/{len(ans)} cached", flush=True)
-        for qid, row in ans.items():
-            prev = done.get(qid) or {}
-            if prev.get("correctness") is not None or prev.get("skipped"):
+        sets[answers], paths[answers] = ans, judge_path(config, answers, judge)
+        done[answers] = load_judgements(paths[answers])
+        print(
+            f"[{answers} answers × {judge} judge] {len(done[answers])}/{len(ans)} cached",
+            flush=True,
+        )
+    order = [q for q in items if any(q in a for a in sets.values())]
+    # questions answered by both models first: they are the ones the 2x2 table compares
+    order.sort(key=lambda q: -sum(q in a for a in sets.values()))
+    for qid in order:
+        for answers, ans in sets.items():
+            row = ans.get(qid)
+            prev = done[answers].get(qid) or {}
+            if row is None or prev.get("correctness") is not None or prev.get("skipped"):
                 continue
             a = Answer.model_validate(row["answer"])
             context = build_user_prompt(a.question, a.sources) if a.sources else ""
             for attempt in range(cooldowns + 1):
                 try:
-                    done[qid] = {"id": qid, **judge_answer(llm, items[qid], a.text, context)}
+                    done[answers][qid] = {
+                        "id": qid,
+                        **judge_answer(llm, items[qid], a.text, context),
+                    }
                     break
                 except RuntimeError as e:
                     if "413" in str(e) or "too large" in str(e).lower():
-                        done[qid] = {"id": qid, "skipped": "request too large for the judge"}
+                        done[answers][qid] = {
+                            "id": qid,
+                            "skipped": "request too large for the judge",
+                        }
                         break
                     wait = retry_after_seconds(str(e)) or 65.0
                     if attempt == cooldowns or time.time() + wait > deadline:
-                        save_judgements(path, done)
-                        print(f"   STOPPED at {qid}: {str(e).splitlines()[0]}")
+                        save_judgements(paths[answers], done[answers])
+                        print(f"   STOPPED at {answers}/{qid}: {str(e).splitlines()[0]}")
                         return
-                    print(f"   {qid}: rate limited, waiting {wait:.0f} s", flush=True)
+                    print(f"   {answers}/{qid}: rate limited, waiting {wait:.0f} s", flush=True)
                     time.sleep(wait + 1)
-            save_judgements(path, done)
+            save_judgements(paths[answers], done[answers])
             time.sleep(sleep_s)
-        print(
-            f"   done: {sum(1 for r in done.values() if r.get('correctness') is not None)}"
-            f"/{len(ans)}"
-        )
+    for answers in sets:
+        n = sum(1 for r in done[answers].values() if r.get("correctness") is not None)
+        print(f"   {answers}: {n}/{len(sets[answers])} judged by {judge}")
 
 
 def answer_metrics(ans: dict[str, dict[str, Any]]) -> dict[str, Any]:
