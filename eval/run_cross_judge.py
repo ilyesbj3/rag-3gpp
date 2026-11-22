@@ -52,7 +52,7 @@ def frozen_answers(config: str, provider: str) -> dict[str, dict[str, Any]]:
             return {}
         shutil.copyfile(src, frozen)
     rows = [json.loads(x) for x in frozen.read_text(encoding="utf-8").splitlines() if x]
-    return {r["id"]: r for r in rows}
+    return {r["id"]: r for r in rows if not r.get("skipped")}
 
 
 def judge_path(config: str, answers: str, judge: str) -> Path:

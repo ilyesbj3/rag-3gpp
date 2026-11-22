@@ -1,12 +1,12 @@
 {
- "date": "2026-11-21 21:45 UTC",
- "git_commit": "65ed7dc",
+ "date": "2026-11-22 09:24 UTC",
+ "git_commit": "b3ac1d4",
  "corpus": {
   "TS 23.501": "18.12.0",
   "TS 24.501": "18.14.0"
  },
  "embedding_model": "BAAI/bge-m3",
- "reranker_model": "BAAI/bge-reranker-v2-m3",
+ "reranker_model": "BAAI/bge-reranker-base",
  "status": "preliminary \u2014 gold set pending human validation",
  "provider": "gemini",
  "judge_provider": "gemini",
@@ -17,6 +17,6 @@
   "no_reranker",
   "no_routing"
  ],
- "stopped": null,
+ "stopped": "judge no_hybrid/o-02: All LLM providers failed:",
  "judge": "LLM-as-judge, rubric 0/0.5/1 (eval/metrics.py JUDGE_TEMPLATE)"
 }

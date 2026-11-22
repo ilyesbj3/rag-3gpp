@@ -1,3 +1,3 @@
 config,description,n,model,total_mean_s,total_max_s,dense_mean_s,sparse_mean_s,rerank_mean_s,llm_mean_s
-best,"hybrid on, reranker on, routing on",5,gemini-3.5-flash-lite,48.1,60.1,2.09,0.0,43.59,2.45
-no_reranker,"hybrid on, reranker off, routing on",5,gemini-3.5-flash-lite,2.0,3.4,0.14,0.0,0.0,1.87
+best,"hybrid on, reranker on, routing on",5,gemini-3.1-flash-lite,7.6,8.5,0.15,0.0,4.14,3.28
+no_reranker,"hybrid on, reranker off, routing on",5,gemini-3.1-flash-lite,3.0,4.2,0.15,0.0,0.0,2.83

@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_settings()
     items = [it for it in load_testset() if it["type"] != "out_of_corpus"][: args.n]
     base = RAGPipeline(settings)
+    base.warmup()  # the app loads the models at startup; do not time the first load
     rows = []
     for name in args.configs.split(","):
         pipe = RAGPipeline(

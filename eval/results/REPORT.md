@@ -90,7 +90,25 @@ Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen
 
 ## Generation
 
-### Generation — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
+### Generation — current defaults — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
+
+> Run stopped early (quota): judge no_hybrid/o-02: All LLM providers failed:. Rows with n < n_expected are partial; re-run the same command to resume.
+
+| Config | n | Faithfulness | Correctness | Citation acc. | Citation acc. (loose) | Gold cited | Not grounded | Refusal P | Refusal R | Refusal F1 | False refusals | Latency mean (s) | p95 (s) | Fallback |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| best | 30/30 | 1.00 | 0.80 | 0.97 | 0.97 | 0.74 | 0.00 | 0.33 | 1.00 | 0.50 | 6 | 4.0 | 6.7 | 0.00 |
+| baseline | 30/30 | 1.00 | 0.82 | 0.99 | 0.99 | 0.78 | 0.00 | 0.38 | 1.00 | 0.55 | 5 | 4.0 | 8.1 | 0.00 |
+| no_hybrid | 30/30 | 1.00 | 0.83 | 1.00 | 1.00 | 0.74 | 0.00 | 0.43 | 1.00 | 0.60 | 4 | 3.1 | 6.0 | 0.00 |
+
+Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
+
+![generation gemini](figures/generation_gemini.png)
+
+Current defaults: router v2, bge-reranker-base, 15 candidates, 512 tokens, gate 0.10. `no_reranker` and `no_routing` are pending (Gemini free-tier daily quota); the complete 5-configuration run with the previous defaults is below. Compared with that run, `best` correctness went 0.88 → 0.80: five questions were refused by the LLM because a key chunk was no longer among the 6 sources (e.g. s23-01: §6.2.1 AMF; s23-07: the 5QI-1 row of Table 5.7.4-1), two improved. The paired change is −0.08, 95% CI [−0.23, +0.05] (not established on 30 questions), but the mechanism is concrete: the faster reranker trades some answer quality for 6× lower latency.
+
+### Generation — previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens) — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
+
+> Run stopped early (quota): judge no_hybrid/o-02: All LLM providers failed:. Rows with n < n_expected are partial; re-run the same command to resume.
 
 | Config | n | Faithfulness | Correctness | Citation acc. | Citation acc. (loose) | Gold cited | Not grounded | Refusal P | Refusal R | Refusal F1 | False refusals | Latency mean (s) | p95 (s) | Fallback |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -102,14 +120,12 @@ Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen
 
 Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
 
-![generation gemini](figures/generation_gemini.png)
-
 ### Real end-to-end latency (CPU laptop, no reranker cache)
 
 | Config | n | LLM | total mean (s) | total max (s) | dense (s) | rerank (s) | LLM (s) |
 |---|---|---|---|---|---|---|---|
-| best | 5 | gemini-3.5-flash-lite | 48.1 | 60.1 | 2.09 | 43.59 | 2.45 |
-| no_reranker | 5 | gemini-3.5-flash-lite | 2.0 | 3.4 | 0.14 | 0.0 | 1.87 |
+| best | 5 | gemini-3.1-flash-lite | 7.6 | 8.5 | 0.15 | 4.14 | 3.28 |
+| no_reranker | 5 | gemini-3.1-flash-lite | 3.0 | 4.2 | 0.15 | 0.0 | 2.83 |
 
 The latency columns of the generation table above reuse cached reranker scores (`eval/results/raw/rerank_cache.json`) and therefore exclude the cross-encoder compute; this table (`python -m eval.measure_latency`) shows what an app user waits for on CPU.
 
@@ -119,17 +135,17 @@ The main generation tables are judged by the same model that wrote the answers (
 
 **Faithfulness**
 
-| Answers \ Judge | gemini judge (?) | groq judge (openai/gpt-oss-120b) |
+| Answers \ Judge | gemini judge (gemini-3.5-flash-lite) | groq judge (openai/gpt-oss-120b) |
 |---|---|---|
-| gemini answers (gemini-3.5-flash-lite) | pending | 1.00 (n=10) |
-| groq answers (openai/gpt-oss-120b) | pending | pending |
+| gemini answers (gemini-3.5-flash-lite) | 1.00 (n=9) | 1.00 (n=9) |
+| groq answers (openai/gpt-oss-120b) | 1.00 (n=9) | 0.94 (n=9) |
 
 **Correctness**
 
-| Answers \ Judge | gemini judge (?) | groq judge (openai/gpt-oss-120b) |
+| Answers \ Judge | gemini judge (gemini-3.5-flash-lite) | groq judge (openai/gpt-oss-120b) |
 |---|---|---|
-| gemini answers (gemini-3.5-flash-lite) | pending | 0.95 (n=10) |
-| groq answers (openai/gpt-oss-120b) | pending | pending |
+| gemini answers (gemini-3.5-flash-lite) | 1.00 (n=9) | 0.94 (n=9) |
+| groq answers (openai/gpt-oss-120b) | 1.00 (n=9) | 0.94 (n=9) |
 
 Metrics that need no judge (same frozen answers):
 
@@ -138,27 +154,27 @@ Metrics that need no judge (same frozen answers):
 | gemini (gemini-3.5-flash-lite) | 0.98 | 0.81 | 0.60 | 1.00 | 0.75 | 2 |
 | groq (openai/gpt-oss-120b) | 0.98 | 0.67 | 0.00 | 0.00 | 0.00 | 1 |
 
-Some cells are still pending (free-tier quotas); complete them with `python -m eval.run_cross_judge --judge gemini` / `--judge groq`.
+**Self-preference.** faithfulness: on average a judge scores its own model's answers -0.03 higher than the other judge does (Gemini judge on Gemini answers +0.00, Groq judge on Groq answers -0.06); correctness: on average a judge scores its own model's answers +0.00 higher than the other judge does (Gemini judge on Gemini answers +0.06, Groq judge on Groq answers -0.06). A positive value is a self-preference bias of that size; with 30 questions, a few hundredths is one or two answers, so only a gap that both judges agree on (same ranking of the two answer sets) should be trusted.
 
 ## False refusals: gate or LLM?
 
-15 in-corpus questions were refused across the generation configurations: **0 by the score gate**, **15 by the LLM** after it saw the sources. A gate refusal means retrieval found nothing above the threshold; an LLM refusal means the model judged the retrieved sources insufficient (typically one half of a cross-spec question was missing).
+15 in-corpus questions were refused across the reported generation configurations (current defaults): **0 by the score gate**, **15 by the LLM** after it saw the sources. A gate refusal means retrieval found nothing above the threshold; an LLM refusal means the model judged the retrieved sources insufficient (typically one half of a cross-spec question was missing).
 
 | Config | Question | Type | Refused by | Gate score |
 |---|---|---|---|---|
-| `best` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.987 |
-| `best` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.991 |
-| `no_hybrid` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.995 |
-| `no_hybrid` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.987 |
-| `no_reranker` | `s23-07` | simple | LLM (gemini-3.5-flash-lite) | 0.765 |
-| `no_reranker` | `s24-06` | simple | LLM (gemini-3.5-flash-lite) | 0.638 |
-| `no_reranker` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.766 |
-| `no_reranker` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.748 |
-| `no_reranker` | `x-04` | cross | LLM (gemini-3.5-flash-lite) | 0.625 |
-| `no_reranker` | `x-06` | cross | LLM (gemini-3.5-flash-lite) | 0.753 |
-| `no_routing` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.995 |
+| `best` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.968 |
+| `best` | `s23-07` | simple | LLM (gemini-3.5-flash-lite) | 0.991 |
+| `best` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.999 |
+| `best` | `x-02` | cross | LLM (gemini-3.5-flash-lite) | 0.998 |
+| `best` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.992 |
+| `best` | `x-04` | cross | LLM (gemini-3.5-flash-lite) | 0.960 |
+| `no_hybrid` | `s23-07` | simple | LLM (gemini-3.5-flash-lite) | 0.991 |
+| `no_hybrid` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.992 |
+| `no_hybrid` | `x-04` | cross | LLM (gemini-3.5-flash-lite) | 0.960 |
+| `no_hybrid` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.995 |
 | `baseline` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.664 |
 | `baseline` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.766 |
+| `baseline` | `x-02` | cross | LLM (gemini-3.5-flash-lite) | 0.741 |
 | `baseline` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.748 |
 | `baseline` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.730 |
 
@@ -228,76 +244,70 @@ Robust effects on this set: BM25 fusion (with reranker), reranker (all else on).
 
 ## Qualitative examples (config `best`)
 
-### Simple question — `s23-01`
+### Simple question — `s23-02`
 
-**Q:** What is the role of the AMF in the 5G System?
-
-**Answer:**
-
-> The Access and Mobility Management Function (AMF) includes the following functionality (some or all of which may be supported in a single instance of an AMF):
-> 
-> * Termination of RAN CP interface (N2) [TS 23.501 §6.2.1].
-> * Termination of NAS (N1), NAS ciphering and integrity protection [TS 23.501 §6.2.1].
-> * Registration management [TS 23.501 §6.2.1].
-> * Connection management [TS 23.501 §6.2.1].
-> * Reachability management [TS 23.501 §6.2.1].
-> * Mobility Management [TS 23.501 §6.2.1].
-> * Lawful intercept (for AMF events and interface to LI System) [TS 23.501 §6.2.1].
-> * Provide transport for SM messages between UE and SMF [TS 23.501 §6.2.1].
-> * Transparent proxy for routing SM messages [TS 23.501 §6.2.1].
-> * Access Authentication [TS 23.501 §6.2.1].
-> * Access Authorization [TS 23.501 §6.2.1].
-> * Provide transport for SMS messages between UE and SMSF [TS 23.501 §6.2.1].
-> * Security Anchor Functionality (SEAF) as specified in TS 33.501 [29] [TS 23.501 §6.2.1].
-> * Location Services management for regulatory services [TS 23.501 §6.2.1].
-> * Provide transport for Location Services messages between UE and LMF as well as between RAN and LMF [TS 23.501 §6.2.1].
-> * EPS Bearer ID allocation for interworking with EPS [TS 23.501 §6.2.1].
-> * UE mobility event notification [TS 23.501 §6.2.1].
-> * S-NSSAIs per TA mapping notification [TS 23.501 §6.2.1].
-> * Support for Control Plane CIoT 5GS Optimisation [TS 23.501 §6.2.1].
-> * Support for User Plane CIoT 5GS Optimisation [TS 23.501 §6.2.1].
-> * Support for restriction of use of Enhanced Coverage [TS 23.501 §6.2.1].
-> * Provisioning of external parameters (Expected UE Behaviour parameters or Network Configuration parameters) [TS 23.501 §6.2.1].
-> * Support for Network Slice-Specific Authentication and Authorization [TS 23.501 §6.2.1].
-> * Support for charging [TS 23.501 §6.2.1].
-> * Controlling the 5G access stratum-based time distribution based on UE's subscription data [TS 23.501 §6.2.1].
-> * Controlling the gNB's time synchronization status reporting and subscription [TS 23.501 §6.2.1].
-> 
-> To support non-3GPP access networks, the AMF may also include the following functionality:
-> * Support of N2 interface with N3IWF/TNGF (over which some 3GPP access information/procedures may not apply and non-3GPP access specific information may be applied) [TS 23.501 §6.2.1].
-> * Support of NAS signalling with a UE over N3IWF/TNGF (where some procedures supported over 3GPP access may not be applicable to untrusted non-3GPP access, e.g., Paging) [TS 23.501 §6.2.1].
-> * Support of authentication of UEs connected over N3IWF/TNGF [TS 23.501 §6.2.1].
-> * Management of mobility, authentication, and separate security context state(s) of a UE connected via a non-3GPP access or connected via a 3GPP access and a non-3GPP access simultaneously [TS 23.501 §6.2.1].
-> * Support for a co-ordinated RM management context valid over a 3GPP access and a Non-3GPP access [TS 23.501 §6.2.1].
-> * Support for dedicated CM management contexts for the UE for connectivity over non-3GPP access [TS 23.501 §6.2.1].
-> * Determine whether the serving N3IWF/TNGF is appropriate based on the slices supported by the N3IWFs/TNGFs [TS 23.501 §6.2.1].
-> 
-> Additionally, the AMF allocates a 5G-GUTI to the UE that is common to both 3GPP and non-3GPP access, and may re-assign a new 5G-GUTI to the UE at any time or under conditions specified in TS 33.501 [29] [TS 23.501 §5.9.4]. During the Registration procedure, the AMF retrieves subscription data from the UDM and uses it to control 5G access stratum-based time distribution if received [TS 23.501 §5.27.1.11].
-
-Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.962 · sources: TS 23.501 §5.21.2.1, TS 23.501 §5.9.4, TS 23.501 §5.27.1.11, TS 23.501 §4.2.2, TS 23.501 §6.2.1, TS 23.501 §5.21.2.2.1 · judge: The answer accurately and comprehensively lists the roles and functions of the AMF based on the provided context, supported by correct citations.
-
-### Cross-spec question — `x-04`
-
-**Q:** What is the registration area and how does the periodic registration update timer work?
+**Q:** Which functionalities does the SMF provide?
 
 **Answer:**
 
-> **Registration Area:**
-> - For a given serving PLMN, an AMF associates multiple access-specific RM contexts for a UE with a Registration Area per access type (3GPP / Non-3GPP), meaning there is one Registration Area for 3GPP access and another Registration Area for non-3GPP access, which are independent [TS 23.501 §5.3.2.4]. 
-> - When the AMF indicates MICO mode to a UE, the registration area is not constrained by paging area size [TS 23.501 §5.4.1.3]. If the AMF serving area is the whole PLMN, based on local policy and subscription information, it may decide to provide an "all PLMN" registration area to the UE, in which case re-registration to the same PLMN due to mobility does not apply [TS 23.501 §5.4.1.3].
-> - If a registration area that is not the "all PLMN" registration area is allocated to a UE in MICO mode, the UE determines if it is within the registration area or not when it has Mobile Originated (MO) data or MO signalling, and performs Mobility Registration Update before initiating the MO data or MO signalling if it is not within the registration area [TS 23.501 §5.4.1.3].
-> - The AMF provides the Registration Area to the NG-RAN as part of the RRC Inactive Assistance Information [TS 23.501 §5.3.3.2.5].
+> The Session Management function (SMF) includes the following functionalities:
 > 
-> **Periodic Registration Update Timer:**
-> - Whenever a UE in RM-REGISTERED state enters CM-IDLE state, it starts a periodic registration timer according to the periodic registration timer value received from the AMF during a Registration procedure [TS 23.501 §5.4.1.1].
-> - The AMF allocates a periodic registration timer value to the UE based on local policies, subscription information, and information provided by the UE [TS 23.501 §5.4.1.1].
-> - After the expiry of the periodic registration timer, the UE shall perform a periodic registration [TS 23.501 §5.4.1.1]. If the UE moves out of network coverage when its periodic registration timer expires, the UE shall perform a Registration procedure when it next returns to the coverage [TS 23.501 §5.4.1.1].
-> - The AMF shall not provide a Periodic Registration Timer for the UE over a Non-3GPP access, and consequently, the UE need not perform Periodic Registration Update procedure over Non-3GPP access [TS 23.501 §5.3.2.4].
-> - If the UE supports 'Strictly Periodic Registration Timer Indication', it indicates this capability in the Registration Request message [TS 23.501 §5.31.7.5]. If provided by the AMF together with the periodic registration timer value, the UE and AMF start the periodic registration timer after completion of the Registration procedure, neither stop nor restart it when entering CM-CONNECTED state, and keep it running while in CM-CONNECTED and after returning to CM-IDLE [TS 23.501 §5.31.7.5]. 
-> - Under 'Strictly Periodic Registration Timer Indication', if and only when the timer expires and the UE is in CM-IDLE, the UE performs a Periodic Registration Update; if it expires while the UE is in CM-CONNECTED, the AMF and UE restart the timer while still applying the indication [TS 23.501 §5.31.7.5].
-> - If the periodic registration timer is renegotiated during a Registration procedure (e.g., triggered by UE Configuration Update), the running timer is stopped and restarted using the renegotiated value, even when the Strictly Periodic Registration Timer Indication was provided [TS 23.501 §5.31.7.5].
+> - Session Management e.g. Session Establishment, modify and release, including tunnel maintain between UPF and AN node [TS 23.501 §6.2.2].
+> - UE IP address allocation & management (including optional Authorization). The UE IP address may be received from a UPF or from an external data network [TS 23.501 §6.2.2].
+> - DHCPv4 (server and client) and DHCPv6 (server and client) functions [TS 23.501 §6.2.2].
+> - Functionality to respond to Address Resolution Protocol (ARP) requests and / or IPv6 Neighbour Solicitation requests based on local cache information for the Ethernet PDUs. The SMF responds to the ARP and / or the IPv6 Neighbour Solicitation Request by providing the MAC address corresponding to the IP address sent in the request [TS 23.501 §6.2.2].
+> - Selection and control of UP function, including controlling the UPF to proxy ARP or IPv6 Neighbour Discovery, or to forward all ARP/IPv6 Neighbour Solicitation traffic to the SMF, for Ethernet PDU Sessions [TS 23.501 §6.2.2].
+> - Configures traffic steering at UPF to route traffic to proper destination [TS 23.501 §6.2.2].
+> - 5G VN group management, e.g. maintain the topology of the involved PSA UPFs, establish and release the N19 tunnels between PSA UPFs, configure traffic forwarding at UPF to apply local switching, N6-based forwarding or N19-based forwarding, manage traffic forwarding in the case that a SMF Set or multiple SMF Sets are serving a 5G VN [TS 23.501 §6.2.2].
+> - Termination of interfaces towards Policy control functions [TS 23.501 §6.2.2].
+> - Lawful intercept (for SM events and interface to LI System) [TS 23.501 §6.2.2].
+> - Support for charging [TS 23.501 §6.2.2].
+> - Control and coordination of charging data collection at UPF [TS 23.501 §6.2.2].
+> - Termination of SM parts of NAS messages [TS 23.501 §6.2.2].
+> - Downlink Data Notification [TS 23.501 §6.2.2].
+> - Initiator of AN specific SM information, sent via AMF over N2 to AN [TS 23.501 §6.2.2].
+> - Determine SSC mode of a session [TS 23.501 §6.2.2].
+> - Support for Control Plane CIoT 5GS Optimisation [TS 23.501 §6.2.2].
+> - Support of header compression [TS 23.501 §6.2.2].
+> - Act as I-SMF in deployments where I-SMF can be inserted, removed and relocated [TS 23.501 §6.2.2].
+> - Provisioning of external parameters (Expected UE Behaviour parameters or Network Configuration parameters) [TS 23.501 §6.2.2].
+> - Support P-CSCF discovery for IMS services [TS 23.501 §6.2.2].
+> - Act as V-SMF with following roaming functionalities [TS 23.501 §6.2.2]:
+>  - Handle local enforcement to apply QoS SLAs (VPLMN) [TS 23.501 §6.2.2].
+>  - Charging (VPLMN) [TS 23.501 §6.2.2].
+>  - Lawful intercept (in VPLMN for SM events and interface to LI System) [TS 23.501 §6.2.2].
+> - Support for interaction with external DN for transport of signalling for PDU Session authentication/authorization by external DN [TS 23.501 §6.2.2].
+> - Instructs UPF and NG-RAN to perform redundant transmission on N3/N9 interfaces [TS 23.501 §6.2.2].
+> - Generation of the TSC Assistance Information based on the TSC Assistance Container received from the PCF [TS 23.501 §6.2.2].
+> - Support for RAN feedback for BAT offset and adjusted periodicity as defined in clause 5.27.2.5 [TS 23.501 §6.2.2].
+> - Policy related functionalities as described in clause 6.2.2 of TS 23.503 [45] [TS 23.501 §6.2.2].
+> - Support monitoring in roaming scenarios (normalization of reports according to roaming agreements between VPLMN and HPLMN, and generation of charging information for Monitoring Event Reports that are sent to the HPLMN) [TS 23.501 §6.2.2].
+> - Support Edge Computing enhancements (Selection of EASDF, obtain and/or provision DNS security information of the EASDF and provision of its address to the UE as the DNS Server for the PDU session; Usage of EASDF services as defined in TS 23.548 [130]; Provision and updates of ECS Address Configuration Information to the UE for supporting the Application Layer Architecture defined in TS 23.558 [134]; for supporting the HR-SBO as defined in clause 6.7 of TS 23.548 [130]) [TS 23.501 §6.2.2].
+> - Support Network Slice Admission Control (Support of NSAC for maximum number of PDU sessions as defined in clauses 5.15.11.2, 5.15.11.3 and 5.15.11.5; Support of NSAC for maximum number of UEs as defined in clauses 5.15.11.3 and 5.15.11.5) [TS 23.501 §6.2.2].
+> - Providing per-QoS flow Non-3GPP QoS assistance information to the UE (e.g. PEGC) and formulation of the CN PDB based on non-3GPP delay budget from UE (e.g. PEGC) as described in clause 5.44.3.4 [TS 23.501 §6.2.2].
+> - Support of PDU Set based handling as described in clause 5.37.5 [TS 23.501 §6.2.2].
+> - Functionalities to support Network Slice Replacement as described in clause 5.15.19 [TS 23.501 §6.2.2].
+> - Functionalities to support indirect UPF event exposure service subscription on behalf of the consumer NF(s) as described in clause 4.15.4.5 of TS 23.502 [3] [TS 23.501 §6.2.2].
 
-Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.949 · sources: TS 23.501 §5.4.1.1, TS 23.501 §5.3.2.4, TS 23.501 §5.4.1.3, TS 23.501 §5.3.3.2.5, TS 23.501 §5.31.7.5, TS 23.501 §5.4.2 · judge: The answer is completely faithful to the provided context and accurately covers both the registration area concept and the operation of the periodic registration update timer based on the specifications.
+Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.945 · sources: TS 23.501 §6.2.2, TS 23.501 §6.3.2, TS 23.501 §5.39.1, TS 23.501 §6.3.2, TS 23.501 §6.3.3.2, TS 23.501 §5.34.6.1 · judge: The answer provides a comprehensive and accurate list of SMF functionalities directly supported by the context with appropriate citations.
+
+### Cross-spec question — `x-05`
+
+**Q:** How are user plane resources of existing PDU sessions re-activated with the service request procedure?
+
+**Answer:**
+
+> To re-activate user plane resources of existing PDU sessions using the service request procedure, the following principles and actions apply according to the documents:
+> 
+> * The UE includes the Uplink data status IE in the SERVICE REQUEST message [TS 24.501 §5.6.1.4.1].
+> * If the UE is not in NB-N1 mode, or if the UE is in NB-N1 mode and does not indicate a request to have user-plane resources established for a number of PDU sessions that exceeds the UE's maximum number of supported user-plane resources, the AMF shall indicate the SMF to re-establish the user-plane resources for the corresponding PDU sessions [TS 24.501 §5.6.1.4.1].
+> * The AMF includes the PDU session reactivation result IE in the SERVICE ACCEPT message to indicate the user-plane resources re-establishment result of the PDU sessions for which the UE requested to re-establish the user-plane resources [TS 24.501 §5.6.1.4.1].
+> * For a PDU session for LADN, the AMF determines the UE presence in LADN service area and forwards the UE presence in LADN service area towards the SMF [TS 24.501 §5.6.1.4.1].
+> * If the Allowed PDU session status IE is included in the SERVICE REQUEST message, the AMF notifies the SMF whether reactivation of user-plane resources for corresponding PDU session(s) associated with non-3GPP access can be performed or cannot be performed based on whether the corresponding PDU session IDs are indicated in the Allowed PDU session status IE (and whether supported user-plane resource limits are respected for UEs in NB-N1 mode) [TS 24.501 §5.6.1.4.1].
+> * If user-plane resources are successfully reactivated for a PDU session indicated by the UE in the Allowed PDU session status IE as allowed to be re-established over 3GPP access, the UE considers the corresponding PDU session to be associated with the 3GPP access, and the AMF and SMF update the associated access type [TS 24.501 §5.6.1.4.1].
+> * If user-plane resources cannot be established for a PDU session, the AMF includes the PDU session reactivation result IE in the SERVICE ACCEPT message indicating that they cannot be re-established, along with a PDU session reactivation result error cause IE with a specific 5GMM cause (e.g., #43 "LADN not available", #28 "restricted service area", #92 "insufficient user-plane resources for the PDU session", or #69 "insufficient resources for specific slice") depending on the reason provided by the SMF or determined by the AMF [TS 24.501 §5.6.1.4.1].
+
+Route: TS 24.501 (NAS / stage 3 signals) · gate score 0.995 · sources: TS 24.501 §5.6.1.4.2, TS 24.501 §5.6.1.4.1, TS 24.501 §5.6.1.4.2, TS 24.501 §5.5.1.3.4, TS 24.501 §5.6.3.3, TS 24.501 §5.6.1.1 · judge: The answer accurately explains how user plane resources of existing PDU sessions are re-activated using the service request procedure, fully supported by the provided context and consistent with the reference.
 
 ### Out-of-corpus question — `o-01`
 
@@ -307,7 +317,7 @@ Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.949 · sources
 
 > I could not find this information in the documents.
 
-Route: TS 24.501, TS 23.501 (no signal) · gate score 0.202 · sources: none · judge: Both the reference and the answer correctly state that the information is not available in the documents.
+Route: TS 24.501, TS 23.501 (no signal) · gate score 0.050 · sources: none · judge: Both the answer and reference correctly state that the information is not present in the provided context.
 
 ## Failure analysis
 
@@ -319,11 +329,12 @@ Route: TS 24.501, TS 23.501 (no signal) · gate score 0.202 · sources: none · 
 - `x-04` gold TS 23.501 §5.3.2.3; TS 24.501 §5.3.7, §10.2 — route TS 23.501; top-3 retrieved: TS 23.501 §5.16.4.4, TS 23.501 §5.4.1.3, TS 23.501 §5.4.1.1; R@10 = 0.0
 - `x-07` gold TS 23.501 §5.10.1, §6.2.1; TS 24.501 §5.4.1, §5.4.2 — route TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.6, TS 24.501 §4.4.1, TS 24.501 §4.4.4.3; R@10 = 1.0
 
-**Answers not judged fully correct (config `best`): 5**
+**Answers not judged fully correct (config `best`): 6**
 
-- `x-01` correctness 0.5 faithfulness 0.5 — The answer includes an unsupported detail regarding the specific clause details for the integrity check failure response at the end, and misses key steps from the reference regarding the complete registration flow like REGISTRATION ACCEPT and REGISTRATION COMPLETE.
-- `x-02` correctness 0.5 faithfulness 1.0 — The answer is faithful to the context but incomplete regarding how a PDU session is generally established and which messages are exchanged, because the provided context lacks those details.
-- `x-03` correctness 0.0 faithfulness 1.0 — The answer claims the information is not in the documents, but the reference and context contain the details about how the UE indicates the requested NSSAI during registration. refused
-- `x-05` correctness 0.0 faithfulness 1.0 — The assistant falsely claimed the information was not in the provided documents, whereas the context contains relevant procedural details about re-establishing user plane resources using the Service Request procedure (e.g., via Uplink data status IE). refused
-- `x-06` correctness 0.5 faithfulness 1.0 — The answer is faithful to the provided context and correctly details the TS 24.501 UE-initiated de-registration procedure, but it misses the TS 23.501 Registration Management (RM) states (RM-REGISTERED and RM-DEREGISTERED) mentioned in the reference.
+- `s23-01` correctness 0.0 faithfulness 1.0 — The answer is a refusal, but the provided reference contains the answer, making correctness 0. refused
+- `s23-07` correctness 0.0 faithfulness 1.0 — The answer refuses to answer because the information is missing from the context, but the reference contains the answer, making correctness 0. refused
+- `x-01` correctness 0.0 faithfulness 1.0 — The reference answer provides details on the registration procedure and NAS messages (such as REGISTRATION REQUEST, REGISTRATION ACCEPT, and REGISTRATION COMPLETE), but the assistant incorrectly refused to answer despite relevant information being available in the context/specs. refused
+- `x-02` correctness 0.0 faithfulness 1.0 — The answer refuses to answer, but the reference contains the information, and parts of the context and standard knowledge base allow for a partial or full answer. refused
+- `x-03` correctness 0.0 faithfulness 1.0 — The model refused to answer even though the context contains partial information about how the UE indicates the Requested NSSAI in registration messages, although details about the exact IE encoding come from the reference. refused
+- `x-04` correctness 0.0 faithfulness 1.0 — The reference answer provides a detailed explanation of the registration area and periodic registration update timer based on TS 23.501 and TS 24.501, whereas the assistant incorrectly refused to answer. refused
 

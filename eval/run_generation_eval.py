@@ -125,12 +125,22 @@ def run_config(
         print(f"   {n_stale} cached answers were produced with other settings: regenerating")
     for it in items:
         row = rows.get(it["id"])
-        if row is not None and stale(row, current):  # pipeline changed since it was cached
+        if row is not None and not row.get("skipped") and stale(row, current):
             row = None
         if row is None:
             try:
                 ans = pipe.answer(it["question"])
             except RuntimeError as e:  # all retries failed (quota / rate limit)
+                if "413" in str(e) or "too large" in str(e).lower():
+                    # prompt larger than the provider accepts (e.g. Groq free tier): skip it
+                    rows[it["id"]] = {
+                        "id": it["id"],
+                        "type": it["type"],
+                        "question": it["question"],
+                        "skipped": "request too large for the provider",
+                    }
+                    save_cache(path, rows)
+                    continue
                 save_cache(path, rows)
                 raise QuotaExhausted(f"{name}/{it['id']}: {e}") from e
             row = {
@@ -144,6 +154,8 @@ def run_config(
             save_cache(path, rows)
             if ans.llm_provider:
                 time.sleep(sleep_s)
+        if row.get("skipped"):
+            continue
         if judge and (row.get("judge") or {}).get("correctness") is None:
             ans = Answer.model_validate(row["answer"])
             context = build_user_prompt(it["question"], ans.sources) if ans.sources else ""
@@ -159,7 +171,7 @@ def run_config(
 
 def summarize(name: str, provider: str, rows: dict[str, dict[str, Any]], items) -> dict:
     ids = [it["id"] for it in items]
-    rs = [rows[i] for i in ids if i in rows]
+    rs = [rows[i] for i in ids if i in rows and not rows[i].get("skipped")]
     flat = []
     for r in rs:
         a = r["answer"]

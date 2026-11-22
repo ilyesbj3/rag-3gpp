@@ -143,19 +143,22 @@ generation evaluation resumes where it stopped after a rate limit.
 ## Results (preliminary — gold set pending human validation)
 
 Full report: [`eval/results/REPORT.md`](eval/results/REPORT.md) (tables, charts, per-type
-breakdown, router accuracy, gate calibration, qualitative examples, failure analysis).
+breakdown, router before/after, gate calibration, reranker benchmark, cross-judging,
+false-refusal breakdown, statistical caution, failure analysis). Bonuses:
+[`eval/results/BONUS.md`](eval/results/BONUS.md).
 
 **Retrieval** — 27 in-corpus questions, top-10 ranking after fusion / reranking; a hit is the
-gold clause or one of its sub-clauses.
+gold clause or one of its sub-clauses. Current defaults: router v2, `bge-reranker-base`, 15
+fused candidates, 512 tokens.
 
 | Config | Hybrid | Reranker | Routing | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|---|---|---|
-| best | ✓ | ✓ | ✓ | 0.667 | 0.852 | 0.926 | 0.734 |
-| no_hybrid | ✗ | ✓ | ✓ | 0.704 | 0.926 | 0.963 | 0.790 |
+| best | ✓ | ✓ | ✓ | 0.704 | 0.815 | 0.852 | 0.747 |
+| no_hybrid | ✗ | ✓ | ✓ | 0.778 | 0.852 | 0.926 | 0.817 |
 | no_reranker | ✓ | ✗ | ✓ | 0.481 | 0.815 | 0.889 | 0.622 |
-| no_routing | ✓ | ✓ | ✗ | 0.667 | 0.926 | 0.963 | 0.762 |
+| no_routing | ✓ | ✓ | ✗ | 0.593 | 0.852 | 0.889 | 0.691 |
 | hybrid_only | ✓ | ✗ | ✗ | 0.407 | 0.778 | 0.889 | 0.574 |
-| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.926 | 0.963 | 0.795 |
+| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.889 | 0.926 | 0.785 |
 | routing_only | ✗ | ✗ | ✓ | 0.630 | 0.889 | 0.926 | 0.730 |
 | baseline | ✗ | ✗ | ✗ | 0.556 | 0.889 | 0.926 | 0.677 |
 
@@ -164,31 +167,42 @@ Faithfulness and correctness are judged **by the same model that wrote the answe
 cross-judging table in `eval/results/REPORT.md` (Gemini and Groq answers × Gemini and Groq
 judges) is the check for self-preference bias.
 
-| Config | Faithfulness | Correctness | Citation accuracy | Gold section cited | Refusal F1 | False refusals |
-|---|---|---|---|---|---|---|
-| best | 0.97 | 0.88 | 0.98 | 0.81 | 0.75 | 2 |
-| baseline | 1.00 | 0.83 | 0.99 | 0.78 | 0.60 | 4 |
-| no_hybrid | 1.00 | 0.92 | 0.97 | 0.93 | 0.75 | 2 |
-| no_reranker | 1.00 | 0.77 | 0.97 | 0.67 | 0.50 | 6 |
-| no_routing | 0.97 | 0.92 | 0.97 | 0.89 | 0.86 | 1 |
+| Config | Settings | Faithfulness | Correctness | Citation acc. | Gold cited | Refusal F1 | False refusals |
+|---|---|---|---|---|---|---|---|
+| best | current | 1.00 | 0.80 | 0.97 | 0.74 | 0.50 | 6 |
+| baseline | current | 1.00 | 0.82 | 0.99 | 0.78 | 0.55 | 5 |
+| no_hybrid | current | 1.00 | 0.83 | 1.00 | 0.74 | 0.60 | 4 |
+| best | previous | 0.97 | 0.88 | 0.98 | 0.81 | 0.75 | 2 |
+| baseline | previous | 1.00 | 0.83 | 0.99 | 0.78 | 0.60 | 4 |
+| no_hybrid | previous | 1.00 | 0.92 | 0.97 | 0.93 | 0.75 | 2 |
+| no_reranker | previous | 1.00 | 0.77 | 0.97 | 0.67 | 0.50 | 6 |
+| no_routing | previous | 0.97 | 0.92 | 0.97 | 0.89 | 0.86 | 1 |
+
+"Previous" = router v1, `bge-reranker-v2-m3`, 30 candidates, 1,024 tokens (complete run);
+`no_reranker` / `no_routing` with the current settings are pending the next Gemini quota
+window. `baseline` is unaffected by the changes, so its two rows (0.82 vs 0.83) show the
+run-to-run noise of LLM + judge.
 
 What the numbers say:
-- **The reranker is the most useful component**: removing it costs 0.11 MRR, 0.11
-  correctness, and triples false refusals. Its score also drives the refusal gate:
-  out-of-corpus questions score ≤ 0.20, in-corpus ones ≥ 0.66, so the calibrated threshold
-  **0.45** refuses all 3 out-of-corpus questions without refusing any in-corpus one before
-  generation. Dense cosine scores cannot separate the two groups.
-- **Simple questions are solved** (R@5 = 1.0 for both specs in `best`). **Cross-spec
-  questions are the weak spot** (R@5 0.43 in `best`): the rule-based router sends 6 of the 7
-  cross questions to a single spec because they are phrased with NAS vocabulary, and the LLM
-  then refuses or answers only half of the question.
-- BM25 fusion helps when there is no reranker (simple questions), but slightly hurts with the
-  reranker on: BM25 candidates take slots in the 30 candidates sent to the reranker.
-  Dense + reranker (`no_hybrid` / `reranker_only`) is the best retrieval setting here.
-- Citation accuracy is ≥ 0.97 everywhere (the citation checker removed the rest); all 3
-  out-of-corpus questions are refused in every configuration.
-- Latency on a CPU laptop: **≈ 48 s per question with the reranker** (43.6 s of reranking),
-  ≈ 2 s without it (`eval/results/latency.csv`).
+- **The reranker matters most for ranking**: with all other components on it adds MRR +0.13
+  (95% paired-bootstrap CI [+0.02, +0.24]); with dense-only retrieval +0.11 (CI touches 0). It also decides refusals: all 3 out-of-corpus questions are
+  refused in every configuration, before generation when the reranker score is below the
+  calibrated gate.
+- **BM25 fusion hurts when the reranker is on** (MRR −0.07, CI [−0.17, −0.00]): BM25 candidates
+  take slots in the small candidate pool sent to the reranker. Dense + reranker
+  (`no_hybrid`) is the best retrieval setting.
+- **Speed vs quality**: the CPU benchmark replaced `bge-reranker-v2-m3` (30 candidates, 1,024
+  tokens) by `bge-reranker-base` (15, 512): MRR 0.734 → 0.747, latency **48 s → 7.6 s** per
+  answer. Answer correctness of `best` moved 0.88 → 0.80: five questions lost a key chunk from
+  the 6 sources and were refused by the LLM, two improved. The paired change (−0.08, CI
+  [−0.23, +0.05]) is not established on 30 questions, but the mechanism is real; set
+  `reranker.model: BAAI/bge-reranker-v2-m3` back if answer quality matters more than speed.
+- **Simple questions are solved** (R@5 = 1.0 for both specs with the reranker); **cross-spec
+  questions remain the weak spot**: router v2 routes 2/7 of them to both specs (v1: 1/7)
+  without changing recall, and all false refusals come from the LLM, not the gate, mostly on
+  cross questions.
+- With n = 27, one question = 0.037 of recall: most other differences are within noise (see
+  "Statistical caution" in the report).
 
 ### Re-running the evaluation after validating the test set
 

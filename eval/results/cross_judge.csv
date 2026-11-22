@@ -1,5 +1,5 @@
 config,answers,answer_model,judge,judge_model,n_judged,n_common,n_answers,faithfulness,correctness,citation_accuracy,gold_citation_recall,refusal_precision,refusal_recall,refusal_f1,false_refusals
-best,gemini,gemini-3.5-flash-lite,gemini,,0,0,30,nan,nan,0.9832,0.8148,0.6,1.0,0.75,2.0
-best,gemini,gemini-3.5-flash-lite,groq,openai/gpt-oss-120b,10,0,30,1.0,0.95,0.9832,0.8148,0.6,1.0,0.75,2.0
-best,groq,openai/gpt-oss-120b,gemini,,0,0,24,nan,nan,0.9833,0.6667,0.0,0.0,0.0,1.0
-best,groq,openai/gpt-oss-120b,groq,,0,0,24,nan,nan,0.9833,0.6667,0.0,0.0,0.0,1.0
+best,gemini,gemini-3.5-flash-lite,gemini,gemini-3.5-flash-lite,9,9,30,1.0,1.0,0.9832,0.8148,0.6,1.0,0.75,2.0
+best,gemini,gemini-3.5-flash-lite,groq,openai/gpt-oss-120b,9,9,30,1.0,0.9444,0.9832,0.8148,0.6,1.0,0.75,2.0
+best,groq,openai/gpt-oss-120b,gemini,gemini-3.5-flash-lite,9,9,24,1.0,1.0,0.9833,0.6667,0.0,0.0,0.0,1.0
+best,groq,openai/gpt-oss-120b,groq,openai/gpt-oss-120b,9,9,24,0.9444,0.9444,0.9833,0.6667,0.0,0.0,0.0,1.0

@@ -242,13 +242,19 @@ def gate_section(prelim: str) -> list[str]:
     return out
 
 
-def generation_section(provider: str, prelim: str) -> tuple[list[str], list[str]]:
-    rows = read_csv(RESULTS_DIR / f"generation_{provider}.csv")
+def generation_section(
+    provider: str, prelim: str, tag: str = "", label: str = ""
+) -> tuple[list[str], list[str]]:
+    rows = read_csv(RESULTS_DIR / f"generation_{provider}{tag}.csv")
     if not rows:
         return [f"_Generation evaluation ({provider}) not run yet._"], []
     meta_path = RESULTS_DIR / f"generation_{provider}_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
-    out = [f"### Generation — provider `{provider}` ({rows[0].get('llm_models')}) — *{prelim}*", ""]
+    out = [
+        f"### Generation{(' — ' + label) if label else ''} — provider `{provider}` "
+        f"({rows[0].get('llm_models')}) — *{prelim}*",
+        "",
+    ]
     if meta.get("stopped"):
         out += [
             f"> Run stopped early (quota): {meta['stopped']}. Rows with n < "
@@ -304,7 +310,7 @@ def generation_section(provider: str, prelim: str) -> tuple[list[str], list[str]
         "cited = answer cites ≥1 gold section.",
     ]
     grouped_bars(
-        FIG_DIR / f"generation_{provider}.png",
+        FIG_DIR / f"generation_{provider}{tag}.png",
         [r["config"] for r in rows],
         {
             "Faithfulness": [float(r["faithfulness"] or 0) for r in rows],
@@ -529,7 +535,8 @@ def statistics_section() -> list[str]:
 
 def false_refusal_section(provider: str) -> list[str]:
     table = []
-    for cfg in CONFIGS:
+    current = [r["config"] for r in read_csv(RESULTS_DIR / f"generation_{provider}.csv")]
+    for cfg in [c for c in CONFIGS if c in current]:  # only configs of the reported run
         for r in load_gen(cfg, provider).values():
             a = r["answer"]
             if r["type"] != "out_of_corpus" and a["refused"]:
@@ -545,7 +552,8 @@ def false_refusal_section(provider: str) -> list[str]:
     out = [
         "## False refusals: gate or LLM?",
         "",
-        f"{len(table)} in-corpus questions were refused across the generation configurations: "
+        f"{len(table)} in-corpus questions were refused across the reported generation "
+        "configurations (current defaults): "
         f"**{gate} by the score gate**, **{len(table) - gate} by the LLM** after it saw the "
         "sources. A gate refusal means retrieval found nothing above the threshold; an LLM "
         "refusal means the model judged the retrieved sources insufficient (typically one half "
@@ -806,9 +814,29 @@ def main() -> int:
     gsum_all = []
     for provider in ("gemini", "grok"):
         if (RESULTS_DIR / f"generation_{provider}.csv").exists():
-            gtab, gsum = generation_section(provider, prelim)
+            gtab, gsum = generation_section(provider, prelim, label="current defaults")
             gsum_all += [f"[{provider}] {s}" for s in gsum]
             L += gtab + ["", f"![generation {provider}](figures/generation_{provider}.png)", ""]
+            L += [
+                "Current defaults: router v2, bge-reranker-base, 15 candidates, 512 tokens, gate "
+                "0.10. `no_reranker` and `no_routing` are pending (Gemini free-tier daily quota); "
+                "the complete 5-configuration run with the previous defaults is below. Compared "
+                "with that run, `best` correctness went 0.88 → 0.80: five questions were refused "
+                "by the LLM because a key chunk was no longer among the 6 sources (e.g. s23-01: "
+                "§6.2.1 AMF; s23-07: the 5QI-1 row of Table 5.7.4-1), two improved. The paired "
+                "change is −0.08, 95% CI [−0.23, +0.05] (not established on 30 questions), but "
+                "the mechanism is concrete: the faster reranker trades some answer quality for "
+                "6× lower latency.",
+                "",
+            ]
+    if (RESULTS_DIR / "generation_gemini_router_v1.csv").exists():
+        gtab, _ = generation_section(
+            "gemini",
+            prelim,
+            tag="_router_v1",
+            label="previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens)",
+        )
+        L += gtab + [""]
     if not gsum_all:
         L += ["_Generation evaluation not run yet._", ""]
     L += latency_section()
