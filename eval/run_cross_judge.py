@@ -34,7 +34,7 @@ from eval.metrics import (
     refusal_scores,
 )
 from src.config import load_settings
-from src.generation.llm import build_llm
+from src.generation.llm import build_llm, retry_after_seconds
 from src.generation.prompts import build_user_prompt
 from src.schemas import Answer
 
@@ -90,7 +90,10 @@ def seed_from_main_run(config: str, answers: str, judge: str, ans: dict) -> None
         save_judgements(path, rows)
 
 
-def run_judge(config: str, judge: str, sleep_s: float, cooldowns: int) -> None:
+def run_judge(
+    config: str, judge: str, sleep_s: float, cooldowns: int, max_hours: float = 8.0
+) -> None:
+    deadline = time.time() + max_hours * 3600  # daily token quotas free up gradually
     settings = load_settings()
     items = {it["id"]: it for it in load_testset()}
     llm = build_llm(force=judge, temperature=0, max_tokens=settings.llm.max_tokens)
@@ -117,11 +120,13 @@ def run_judge(config: str, judge: str, sleep_s: float, cooldowns: int) -> None:
                     if "413" in str(e) or "too large" in str(e).lower():
                         done[qid] = {"id": qid, "skipped": "request too large for the judge"}
                         break
-                    if attempt == cooldowns:
+                    wait = retry_after_seconds(str(e)) or 65.0
+                    if attempt == cooldowns or time.time() + wait > deadline:
                         save_judgements(path, done)
                         print(f"   STOPPED at {qid}: {str(e).splitlines()[0]}")
                         return
-                    time.sleep(65)
+                    print(f"   {qid}: rate limited, waiting {wait:.0f} s", flush=True)
+                    time.sleep(wait + 1)
             save_judgements(path, done)
             time.sleep(sleep_s)
         print(
@@ -226,11 +231,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--judge", choices=["gemini", "groq"])
     ap.add_argument("--config", default="best")
     ap.add_argument("--sleep", type=float, default=4.0)
-    ap.add_argument("--cooldowns", type=int, default=5)
+    ap.add_argument("--cooldowns", type=int, default=200)
+    ap.add_argument("--max-hours", type=float, default=8.0, help="total waiting budget")
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args(argv)
     if args.judge and not args.report_only:
-        run_judge(args.config, args.judge, args.sleep, args.cooldowns)
+        run_judge(args.config, args.judge, args.sleep, args.cooldowns, args.max_hours)
     for r in report(args.config):
         print(
             f"  {r['answers']:6s} answers × {r['judge']:6s} judge: n={r['n_judged']}/"
