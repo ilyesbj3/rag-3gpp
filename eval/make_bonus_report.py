@@ -87,6 +87,14 @@ def gen_rows(provider: str, tag: str, label: str, configs: list[str]) -> list[li
     ]
 
 
+# Bonuses 1-4 ran with the previous defaults (router v1, bge-reranker-v2-m3, 30 candidates,
+# 1024 tokens, gate 0.45); their reference rows come from that complete run.
+PREV = "router_v1"
+PREV_NOTE = (
+    "Settings: previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1,024 "
+    "tokens, gate 0.45) for both sides of the comparison."
+)
+
 GEN_HEADER = [
     "Run",
     "Config",
@@ -105,7 +113,7 @@ RET_HEADER = ["Run", "Config", "R@1", "R@5", "R@10", "MRR"]
 
 def section_french() -> list[str]:
     rows = (
-        retrieval_rows("", "English questions", ["best", "no_hybrid", "no_reranker", "baseline"])
+        retrieval_rows(PREV, "English questions", ["best", "no_hybrid", "no_reranker", "baseline"])
         + retrieval_rows("fr", "French questions")
         + retrieval_rows("fr_translated", "French + BM25 query translation")
     )
@@ -113,6 +121,8 @@ def section_french() -> list[str]:
         return []
     out = [
         "## 1. French questions → English answers (bge-m3)",
+        "",
+        PREV_NOTE,
         "",
         "The 30 questions were translated to French (`eval/testset_fr.json`, same gold "
         "labels). bge-m3 and bge-reranker-v2-m3 are multilingual; the BM25 tokenizer is "
@@ -131,7 +141,7 @@ def section_french() -> list[str]:
         out += ["", "### Generation (config `best`)", ""]
         out += md_table(
             GEN_HEADER,
-            gen_rows("gemini", "", "English questions", ["best"])
+            gen_rows("gemini", PREV, "English questions", ["best"])
             + gen_rows("gemini", "fr", "French questions", ["best"]),
         )
         out += [
@@ -144,7 +154,7 @@ def section_french() -> list[str]:
 
 def section_embeddings() -> list[str]:
     rows = retrieval_rows(
-        "", "bge-m3 (1024-d)", ["baseline", "no_hybrid", "best"]
+        PREV, "bge-m3 (1024-d)", ["baseline", "no_hybrid", "best"]
     ) + retrieval_rows("bge-small", "bge-small-en-v1.5 (384-d)")
     if not any("small" in r[0] for r in rows):
         return []
@@ -152,6 +162,8 @@ def section_embeddings() -> list[str]:
     times = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {}
     out = [
         "## 2. Embedding models: bge-m3 vs bge-small-en-v1.5",
+        "",
+        PREV_NOTE,
         "",
         f"Same chunks, same BM25 and reranker; only the dense model changes "
         f"(*{PRELIMINARY}*). `baseline` = dense only.",
@@ -164,11 +176,13 @@ def section_embeddings() -> list[str]:
 
 
 def section_llms() -> list[str]:
-    rows = gen_rows("gemini", "", "API", ["best"]) + gen_rows("ollama", "", "local", ["best"])
+    rows = gen_rows("gemini", PREV, "API", ["best"]) + gen_rows("ollama", "", "local", ["best"])
     if len(rows) < 2:
         return []
     out = [
         "## 3. LLM comparison: Gemini (API) vs Llama 3.2 3B (local, Ollama)",
+        "",
+        PREV_NOTE,
         "",
         "Same retrieval (`best`, identical sources thanks to the cache), same prompt; the "
         "judge is gemini-3.5-flash-lite for both. Grok could not be compared: the xAI key "
@@ -181,12 +195,14 @@ def section_llms() -> list[str]:
 
 def section_23502() -> list[str]:
     rows = retrieval_rows(
-        "", "TS 23.501 + TS 24.501", ["no_routing", "reranker_only"]
+        PREV, "TS 23.501 + TS 24.501", ["no_routing", "reranker_only"]
     ) + retrieval_rows("3specs", "+ TS 23.502")
     if not any("23.502" in r[0] for r in rows):
         return []
     out = [
         "## 4. Adding TS 23.502 (procedures)",
+        "",
+        PREV_NOTE,
         "",
         "Corpus extended with TS 23.502 V18.14.0 (`configs/rel18_3specs.yaml`, 5,216 "
         "chunks). The router only knows the two original specs, so the comparison uses "
@@ -213,10 +229,10 @@ def section_23502() -> list[str]:
     out += ["", "### Generation", ""]
     out += md_table(
         GEN_HEADER,
-        gen_rows("gemini", "", "2 specs", ["no_routing"])
+        gen_rows("gemini", PREV, "2 specs", ["no_routing"])
         + gen_rows("gemini", "3specs", "3 specs", ["no_routing"]),
     )
-    by2, by3 = by_group("", "no_routing"), by_group("3specs", "no_routing")
+    by2, by3 = by_group(PREV, "no_routing"), by_group("3specs", "no_routing")
     if by2 and by3:
         out += [
             "",
