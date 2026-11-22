@@ -126,6 +126,9 @@ rag-3gpp/
 ├── .gitignore                 # .env, data/raw/, data/index/, data/processed/, .venv/, __pycache__/, eval/results/raw/
 ├── docker-compose.yml         # qdrant service, volume ./data/index/qdrant_storage
 ├── Makefile                   # shortcuts for the commands in §15
+├── requirements.lock          # exact versions (pip freeze, Python 3.11)
+├── PROGRESS.md                # build log, decisions, blocked items
+├── configs/                   # corpus variants for bonuses (RAG_CONFIG=configs/<name>.yaml)
 ├── data/
 │   ├── raw/                   # downloaded zips (git-ignored)
 │   ├── processed/             # chunks.jsonl, parse_report.md

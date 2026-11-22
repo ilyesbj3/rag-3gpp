@@ -153,3 +153,14 @@ def test_retrieve_all_flag_combinations(hybrid, reranker, routing):
     assert (res.candidates[0].bm25_rank is not None) == hybrid
     assert (res.candidates[0].rerank_score is not None) == reranker
     assert res.route.reason == ("routing disabled" if not routing else res.route.reason)
+
+
+def test_bm25_query_translation_uses_llm_once():
+    llm = FakeLLM(lambda u: "When does timer T3510 start?")
+    p = make_pipeline(llm, translate_query_for_bm25=True)
+    res = p.retrieve_full("Quand le temporisateur T3510 démarre-t-il ?")
+    assert llm.calls == ["Quand le temporisateur T3510 démarre-t-il ?"]
+    assert res.candidates[0].chunk.section == "10.2"
+    p.retrieve_full("Quand le temporisateur T3510 démarre-t-il ?")
+    assert len(llm.calls) == 1  # cached
+    assert p.to_english("ascii question") == "ascii question"

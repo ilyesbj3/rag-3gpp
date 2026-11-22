@@ -21,7 +21,7 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 | 9 | Retrieval eval + gate calibration | done (preliminary) | feat(eval) retrieval |
 | 10 | Generation eval + report | done (preliminary) | feat(eval) generation |
 | 11 | README + presentation + architecture | done | docs |
-| 12 | Bonuses | todo | |
+| 12 | Bonuses | done (Rel-17 generation partial) | feat(bonus) |
 
 ## Phase 1–2 (summary)
 - Corpus: TS 23.501 V18.12.0 (`23501-ic0.zip`, cover dated 2025-12) and TS 24.501 V18.14.0
@@ -172,10 +172,49 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
   `docs/presentation_outline.md` (16 slides with numbers). Makefile and CLAUDE.md §15
   commands synced.
 
+## Phase 12 — bonuses (results in `eval/results/BONUS.md`, preliminary)
+- Infrastructure: corpus variants via `RAG_CONFIG=configs/<name>.yaml` (own processed/,
+  index/, Qdrant collection, VERSIONS_<name>.md; main index untouched); system prompt names
+  the corpus specs/release from config (verbatim prompt for the default corpus); reranker
+  cache keys include a text hash for variants; variant builds reuse main-index embeddings of
+  byte-identical chunks; `--testset/--tag/--embedding-model/--translate-bm25/
+  --allow-missing-gold` options on the eval scripts; local LLM provider via Ollama's
+  OpenAI-compatible API (`src/generation/local_llm.py`, no new dependency).
+- B1 French (`eval/testset_fr.json`, same gold): retrieval MRR best 0.785, no_hybrid 0.836,
+  no_reranker 0.528, baseline 0.650 (EN: 0.734 / 0.790 / 0.622 / 0.677) → bge-m3 + reranker
+  are robust to French; BM25 is the weak part. Generation best: correctness 0.87,
+  faithfulness 1.0, citation acc. 0.94. Translated-BM25 run hit the 15 requests/min limit of
+  flash-lite; eval now pre-translates once with pacing → re-run pending.
+- B3: Grok impossible (invalid key) → API vs local instead: gemini-3.5-flash-lite vs
+  `llama3.2:3b` via Ollama (local variant `llama3.2-3b-8k` created with num_ctx 8192 because
+  prompts are ~5k tokens).
+- B4/B5 corpora downloaded and chunked (acceptance checks pass): TS 23.502 V18.14.0
+  (`23502-ie0.zip`, 1,619 chunks; 3-spec corpus 5,216 chunks); Rel-17 TS 23.501 V17.15.0
+  (`23501-hf0.zip`) + TS 24.501 V17.18.1 (`24501-hi1.zip`), 3,033 chunks. Provenance in
+  `data/VERSIONS_rel18_3specs.md` and `data/VERSIONS_rel17.md`.
+- B1 French translated-BM25 (translator gemini-3.1-flash-lite, flash-lite quota used up):
+  MRR best 0.776 / no_reranker 0.531 vs 0.785 / 0.528 untranslated → no gain; generation
+  (best, French): correctness 0.87, 23/23 non-refused answers in English.
+- B2 bge-small-en-v1.5: indexing 318 s vs 4,422 s; dense-only MRR 0.616 vs 0.677 (bge-m3);
+  with reranker 0.759–0.771 vs 0.734–0.790 → the reranker hides most of the gap.
+- B3 Gemini (API) vs llama3.2-3b-8k (local, CPU): faithfulness 0.97 vs 0.82, correctness 0.88
+  vs 0.77, citation accuracy 0.98 vs 0.71, refusal F1 0.75 vs 1.00, 2 s vs 18 s per answer.
+- B4 + TS 23.502 (no routing): MRR 0.762 → 0.725 (reranker_only 0.795 → 0.769), cross R@5
+  0.71 → 0.57 for original gold; ~1.7/6 sources from 23.502 on cross questions; generation
+  correctness 0.92 → 0.90. Index build reused 3,597 embeddings, computed 1,619.
+- B5 Rel-17: retrieval MRR 0.731 vs 0.734; all Rel-18 gold sections also exist in Rel-17.
+  Generation **partial (6/30)**: gemini-3.5-flash-lite daily quota (500 requests/day)
+  exhausted. Resume: `RAG_CONFIG=configs/rel17.yaml python -m eval.run_generation_eval
+  --provider gemini --tag rel17 --configs best` then `python -m eval.make_bonus_report`.
+
 ## Open issues
-- none
+- Cross-spec questions are the main failure mode (routing + retrieval), see REPORT.md.
+- Rel-17 generation bonus partial (quota) — resumable.
 
 ## Blocked / needs human
 - **xAI key rejected**: `Incorrect API key provided` on both models.list and chat. Grok
   fallback and the Gemini-vs-Grok bonus cannot run until a valid `XAI_API_KEY` is set in `.env`.
-- Test set validation (all 30 items `verified: false`) — see `eval/testset_review.md`.
+- Test set validation (all 30 items `verified: false`) — see `eval/testset_review.md`; all
+  reported numbers are preliminary until then.
+- Gemini free-tier quotas (20 requests/day for flash models, 500/day for flash-lite) limit
+  re-runs; a paid key or waiting for the daily reset is needed for large re-runs.

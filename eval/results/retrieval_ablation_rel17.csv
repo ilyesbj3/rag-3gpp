@@ -1,0 +1,5 @@
+config,hybrid,reranker,routing,group,n,recall@1,recall@3,recall@5,recall@10,mrr,both_recall@1,both_recall@3,both_recall@5,both_recall@10
+best,True,True,True,all,27,0.6667,0.7778,0.8519,0.9259,0.7307,,,,
+best,True,True,True,simple-23,10,0.7,0.9,0.9,0.9,0.7667,,,,
+best,True,True,True,simple-24,10,0.9,0.9,1.0,1.0,0.92,,,,
+best,True,True,True,cross,7,0.2857,0.4286,0.5714,0.8571,0.4087,0.0,0.0,0.0,0.0

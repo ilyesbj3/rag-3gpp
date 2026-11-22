@@ -27,6 +27,20 @@ Rules:
    steps). For questions spanning architecture and NAS signalling, explain the procedure
    (TS 23.501) and then the NAS messages involved (TS 24.501)."""
 
+_DEFAULT_SPECS = "3GPP TS 23.501 (Release 18) and TS 24.501\n(Release 18)"
+
+
+def system_prompt_for(specs) -> str:
+    """System prompt naming the corpus specs; identical to SYSTEM_PROMPT for the default corpus.
+
+    `specs` is the list of `SpecConfig` from the settings (used by corpus-variant bonuses)."""
+    names = [f"{s.id} ({s.release.replace('Rel-', 'Release ')})" for s in specs]
+    if names == ["TS 23.501 (Release 18)", "TS 24.501 (Release 18)"]:
+        return SYSTEM_PROMPT
+    listed = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0]
+    return SYSTEM_PROMPT.replace(_DEFAULT_SPECS, "3GPP " + listed)
+
+
 USER_TEMPLATE = """Sources:
 {context_blocks}
 

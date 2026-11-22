@@ -1,0 +1,4 @@
+config,n,route_superset,route_exact,exact_simple-23,exact_simple-24,exact_cross
+baseline,27,1.0,0.2593,0.0,0.0,1.0
+no_hybrid,27,0.7778,0.7407,1.0,0.9,0.1429
+best,27,0.7778,0.7407,1.0,0.9,0.1429

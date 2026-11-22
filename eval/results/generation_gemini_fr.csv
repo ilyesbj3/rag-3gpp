@@ -1,0 +1,2 @@
+config,description,provider,llm_models,n,n_expected,faithfulness,correctness,correctness_in_corpus,citation_accuracy,citation_accuracy_loose,gold_citation_recall,not_grounded_rate,refusal_precision,refusal_recall,refusal_f1,false_refusals,false_refusal_rate,latency_mean_s,latency_p95_s,fallback_rate
+best,"hybrid on, reranker on, routing on",gemini,gemini-3.5-flash-lite,30,30,1.0,0.8667,0.8519,0.9431,0.9431,0.7778,0.0435,0.4286,1.0,0.6,4.0,0.1481,1.93,2.78,0.0

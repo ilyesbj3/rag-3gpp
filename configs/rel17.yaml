@@ -1,0 +1,42 @@
+# Bonus: Release 17 versions of the two specs (Rel-17 vs Rel-18 comparison). Use with
+#   RAG_CONFIG=configs/rel17.yaml python -m src.index.build_index --rebuild
+corpus:
+  specs:
+    - {id: "TS 23.501", short: "23.501", version: "17.15.0", release: "Rel-17", file: "23501-hf0.zip",
+       url: "https://www.3gpp.org/ftp/Specs/archive/23_series/23.501/23501-hf0.zip"}
+    - {id: "TS 24.501", short: "24.501", version: "17.18.1", release: "Rel-17", file: "24501-hi1.zip",
+       url: "https://www.3gpp.org/ftp/Specs/archive/24_series/24.501/24501-hi1.zip"}
+chunking:
+  max_tokens: 800
+  overlap_tokens: 100
+  min_tokens: 30            # sections below this stay separate chunks (never merged), flagged in stats
+embedding:
+  model: "BAAI/bge-m3"
+  batch_size: 16
+  max_seq_length: 1024
+qdrant:
+  url: "http://localhost:6333"   # set to "" to use local path mode
+  path: "data/index/qdrant"
+  collection: "3gpp_rel17_bge-m3"
+retrieval:
+  dense_top_n: 50
+  sparse_top_n: 50
+  rrf_k: 60
+  fused_top_n: 30           # candidates passed to the reranker
+  final_top_k: 6            # chunks given to the LLM
+  min_per_spec_when_both: 2 # quota for cross-spec questions
+  use_hybrid: true
+  use_reranker: true
+  use_routing: true
+  translate_query_for_bm25: false  # bonus: translate non-English questions for BM25
+gate:
+  reranker_threshold: 0.45  # calibrated (eval/results/gate_choice.json, preliminary gold set)
+  dense_threshold: 0.25     # calibrated; dense scores do not separate out-of-corpus questions
+reranker:
+  model: "BAAI/bge-reranker-v2-m3"
+  max_length: 1024
+llm:
+  provider: "auto"          # auto (gemini→grok) | gemini | grok
+  temperature: 0
+  max_tokens: 8192          # gemini-3.x "thinking" tokens count against this budget
+seed: 42

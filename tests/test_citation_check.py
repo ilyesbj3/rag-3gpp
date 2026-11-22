@@ -44,3 +44,18 @@ def test_no_citation_warns_not_grounded():
 def test_refusal_normalized():
     r = check_citations("Sorry. " + REFUSAL + " [TS 24.501 §A.1]", LABELS)
     assert r.refused and r.text == REFUSAL and r.citations == []
+
+
+def test_system_prompt_names_corpus_specs():
+    from src.config import SpecConfig
+    from src.generation.prompts import SYSTEM_PROMPT, system_prompt_for
+
+    def spec(i, rel):
+        return SpecConfig(id=i, short=i[3:], version="v", release=rel, file="f", url="u")
+
+    default = [spec("TS 23.501", "Rel-18"), spec("TS 24.501", "Rel-18")]
+    assert system_prompt_for(default) == SYSTEM_PROMPT
+    rel17 = system_prompt_for([spec("TS 23.501", "Rel-17"), spec("TS 24.501", "Rel-17")])
+    assert "TS 23.501 (Release 17) and TS 24.501 (Release 17)" in rel17
+    three = system_prompt_for(default + [spec("TS 23.502", "Rel-18")])
+    assert "TS 23.501 (Release 18), TS 24.501 (Release 18) and TS 23.502 (Release 18)" in three

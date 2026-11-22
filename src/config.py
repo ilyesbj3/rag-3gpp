@@ -9,6 +9,7 @@ then `config.yaml`. API keys are NOT part of Settings; they are read from `.env`
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -21,11 +22,16 @@ from pydantic_settings import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = ROOT / "config.yaml"
+# Corpus variants (bonus experiments, e.g. `configs/rel17.yaml`) are selected with the
+# RAG_CONFIG environment variable; each variant gets its own processed/ and index/ folders
+# (named after the config file) so the main index is never overwritten.
+_CONFIG_ENV = os.getenv("RAG_CONFIG", "")
+CONFIG_PATH = ROOT / _CONFIG_ENV if _CONFIG_ENV else ROOT / "config.yaml"
+VARIANT = Path(_CONFIG_ENV).stem if _CONFIG_ENV else ""
 DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
-PROCESSED_DIR = DATA_DIR / "processed"
-INDEX_DIR = DATA_DIR / "index"
+PROCESSED_DIR = DATA_DIR / "processed" / VARIANT if VARIANT else DATA_DIR / "processed"
+INDEX_DIR = DATA_DIR / "index" / VARIANT if VARIANT else DATA_DIR / "index"
 
 
 class SpecConfig(BaseModel):
@@ -69,6 +75,7 @@ class RetrievalConfig(BaseModel):
     use_hybrid: bool = True
     use_reranker: bool = True
     use_routing: bool = True
+    translate_query_for_bm25: bool = False  # bonus: non-English questions -> English for BM25
 
 
 class GateConfig(BaseModel):

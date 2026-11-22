@@ -93,8 +93,13 @@ slides after validation.
 ## 15. Limits and perspectives
 - Small, author-drafted test set (pending validation); LLM judge instead of RAGAS; figures as
   captions only; rule-based router; CPU latency.
-- Bonuses / next steps: TS 23.502, Rel-17 vs Rel-18, French questions, LLM and embedding
-  comparisons.
+- Bonuses done (table from `eval/results/BONUS.md`): French questions (bge-m3 + reranker
+  robust: MRR 0.785 FR vs 0.734 EN, answers in English); bge-small-en (14× faster indexing,
+  on par after reranking); Gemini API vs local Llama 3.2 3B (correctness 0.88 vs 0.77,
+  citation accuracy 0.98 vs 0.71); + TS 23.502 (takes ~1.7/6 sources on cross questions, no
+  gain without a 3-spec router); Rel-17 vs Rel-18 (retrieval equivalent).
+- Next steps: router/query decomposition for cross-spec questions, separate candidate pools
+  per retriever, GPU reranking, human-validated larger test set.
 
 ## 16. References
 - Lewis et al. 2020 (RAG, arXiv:2005.11401); Robertson & Zaragoza 2009 (BM25); Chen et al.

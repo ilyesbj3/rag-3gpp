@@ -17,12 +17,16 @@ import numpy as np
 from src.config import Settings, load_settings
 from src.generation.citation_check import check_citations
 from src.generation.llm import REFUSAL, build_llm
-from src.generation.prompts import SYSTEM_PROMPT, build_user_prompt
+from src.generation.prompts import build_user_prompt, system_prompt_for
 from src.retrieval.hybrid import fuse, select_final
 from src.retrieval.router import route
 from src.schemas import Answer, Chunk, RetrievedChunk, RouteDecision
 
 log = logging.getLogger(__name__)
+TRANSLATE_PROMPT = (
+    "Translate the user's question into English. Keep 3GPP terms, message names, timers and "
+    "cause numbers unchanged. Output only the translation."
+)
 
 
 class DenseSearcher(Protocol):
@@ -78,6 +82,7 @@ class RAGPipeline:
         self._sparse = sparse
         self._embed_fn = embed_fn
         self._rerank_fn = rerank_fn
+        self._translations: dict[str, str] = {}
 
     # ------------------------------------------------------------------ lazy components
     @property
@@ -130,6 +135,7 @@ class RAGPipeline:
             "use_hybrid": s.retrieval.use_hybrid,
             "use_reranker": s.retrieval.use_reranker,
             "use_routing": s.retrieval.use_routing,
+            "translate_query_for_bm25": s.retrieval.translate_query_for_bm25,
             "final_top_k": s.retrieval.final_top_k,
             "fused_top_n": s.retrieval.fused_top_n,
             "embedding_model": s.embedding.model,
@@ -155,7 +161,8 @@ class RAGPipeline:
         sparse_hits = None
         if r.use_hybrid:
             t0 = time.perf_counter()
-            sparse_hits = self.sparse.search(question, r.sparse_top_n, specs)
+            bm25_query = self.to_english(question) if r.translate_query_for_bm25 else question
+            sparse_hits = self.sparse.search(bm25_query, r.sparse_top_n, specs)
             t["sparse"] = time.perf_counter() - t0
 
         cands = fuse(dense_hits, sparse_hits, r.rrf_k, r.fused_top_n)
@@ -171,6 +178,15 @@ class RAGPipeline:
             else []
         )
         return RetrievalResult(decision, cands, final, gate_score, passed, t)
+
+    def to_english(self, question: str) -> str:
+        """Translate a question to English with the LLM (used only for BM25, cached)."""
+        if question.isascii():
+            return question
+        if question not in self._translations:
+            resp = self.llm.generate(TRANSLATE_PROMPT, question)
+            self._translations[question] = resp.text.strip() or question
+        return self._translations[question]
 
     def _gate(self, cands: list[RetrievedChunk]) -> tuple[float | None, bool]:
         """Anti-hallucination gate on the best retrieval score (§8.5)."""
@@ -210,7 +226,9 @@ class RAGPipeline:
             )
 
         t0 = time.perf_counter()
-        resp = self.llm.generate(SYSTEM_PROMPT, build_user_prompt(question, res.final))
+        resp = self.llm.generate(
+            system_prompt_for(self.settings.corpus.specs), build_user_prompt(question, res.final)
+        )
         t_llm = time.perf_counter() - t0
 
         labels = {(rc.chunk.spec, rc.chunk.section) for rc in res.final}

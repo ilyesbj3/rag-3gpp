@@ -26,6 +26,7 @@ retrieval:
   use_hybrid: true
   use_reranker: true
   use_routing: true
+  translate_query_for_bm25: false  # bonus: translate non-English questions for BM25
 gate:
   reranker_threshold: 0.45  # calibrated (eval/results/gate_choice.json, preliminary gold set)
   dense_threshold: 0.25     # calibrated; dense scores do not separate out-of-corpus questions

@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.config import DATA_DIR, RAW_DIR, SpecConfig, load_settings  # noqa: E402
+from src.config import DATA_DIR, RAW_DIR, VARIANT, SpecConfig, load_settings  # noqa: E402
 
 USER_AGENT = "Mozilla/5.0 (compatible; rag-3gpp-corpus-downloader/0.1)"
 
@@ -81,7 +81,7 @@ def fetch_spec(spec: SpecConfig, force: bool) -> dict[str, str]:
 
 
 def write_versions(rows: list[dict[str, str]]) -> Path:
-    out = DATA_DIR / "VERSIONS.md"
+    out = DATA_DIR / (f"VERSIONS_{VARIANT}.md" if VARIANT else "VERSIONS.md")
     lines = [
         "# Corpus provenance",
         "",

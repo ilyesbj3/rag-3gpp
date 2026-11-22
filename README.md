@@ -182,6 +182,22 @@ are recomputed only where missing. If the gold set changes the gate calibration,
 values from `eval/results/gate_choice.json` into `config.yaml`.
 <!-- RESULTS:END -->
 
+## Bonus experiments
+
+Results: [`eval/results/BONUS.md`](eval/results/BONUS.md) (preliminary, same unverified
+test set).
+
+| Bonus | How to run | Headline (preliminary) |
+|---|---|---|
+| French questions → English answers | `python -m eval.run_retrieval_eval --testset eval/testset_fr.json --tag fr --configs best,no_hybrid,no_reranker,baseline` (+ `--translate-bm25 --tag fr_translated`), `python -m eval.run_generation_eval --testset eval/testset_fr.json --tag fr --configs best` | bge-m3 + reranker as good on French as on English (MRR 0.785 vs 0.734 for `best`); answers stay in English |
+| Embedding comparison | `python -m src.index.build_index --skip-parse --embedding-model BAAI/bge-small-en-v1.5`, then `python -m eval.run_retrieval_eval --embedding-model BAAI/bge-small-en-v1.5 --tag bge-small --configs baseline,no_hybrid,best` | bge-small: 5 min indexing vs 74 min; weaker alone (MRR 0.616 vs 0.677), on par once reranked |
+| LLM comparison (API vs local) | `ollama create llama3.2-3b-8k` (num_ctx 8192), `OLLAMA_MODEL=llama3.2-3b-8k python -m eval.run_generation_eval --provider ollama --configs best` | Llama 3.2 3B: correctness 0.77, citation accuracy 0.71 vs Gemini 0.88 / 0.98 |
+| + TS 23.502 | `RAG_CONFIG=configs/rel18_3specs.yaml python scripts/download_corpus.py`, `... python -m src.index.build_index --rebuild`, `... python -m eval.run_retrieval_eval --tag 3specs --configs no_routing,reranker_only` | 23.502 takes ~1.7/6 sources on cross questions and slightly lowers recall of the original gold clauses |
+| Rel-17 vs Rel-18 | `RAG_CONFIG=configs/rel17.yaml ...` (same commands, `--tag rel17`) | retrieval equivalent (MRR 0.731 vs 0.734) |
+
+Corpus variants are selected with `RAG_CONFIG` and get their own `data/processed/<variant>/`,
+`data/index/<variant>/` and Qdrant collection, so the main index is never touched.
+
 ## Technical choices
 
 | Choice | Why |

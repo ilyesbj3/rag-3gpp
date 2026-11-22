@@ -1,0 +1,2 @@
+config,description,provider,llm_models,n,n_expected,faithfulness,correctness,correctness_in_corpus,citation_accuracy,citation_accuracy_loose,gold_citation_recall,not_grounded_rate,refusal_precision,refusal_recall,refusal_f1,false_refusals,false_refusal_rate,latency_mean_s,latency_p95_s,fallback_rate
+best,"hybrid on, reranker on, routing on",ollama,llama3.2-3b-8k,30,30,0.8167,0.7667,0.7407,0.706,0.706,0.5926,0.2963,1.0,1.0,1.0,0.0,0.0,17.69,43.7,0.0

@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import logging
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -34,7 +36,7 @@ from eval.metrics import (
     run_metadata,
     validate_gold,
 )
-from src.config import load_settings
+from src.config import VARIANT, load_settings
 from src.ingest.chunker import load_chunks
 from src.pipeline import RAGPipeline
 from src.retrieval.reranker import rerank as model_rerank
@@ -55,7 +57,10 @@ class CachedReranker:
             self.cache = json.loads(RERANK_CACHE.read_text(encoding="utf-8"))
 
     def key(self, q: str, rc: RetrievedChunk) -> str:
-        return f"{self.model}||{q}||{rc.chunk.chunk_id}"
+        base = f"{self.model}||{q}||{rc.chunk.chunk_id}"
+        if VARIANT:  # other corpora reuse chunk ids with different text (e.g. Rel-17)
+            return f"{base}||{hashlib.sha1(rc.chunk.text.encode()).hexdigest()[:12]}"
+        return base
 
     def __call__(self, q: str, cands: list[RetrievedChunk]) -> list[RetrievedChunk]:
         todo = [rc for rc in cands if self.key(q, rc) not in self.cache]
@@ -78,14 +83,46 @@ def group_of(item: dict[str, Any]) -> str:
     return item["type"]
 
 
+TRANSLATIONS_PATH = RAW_DIR / "translations.json"
+TRANSLATIONS: dict[str, str] = {}
+
+
+def pretranslate(base: RAGPipeline, questions: list[str], pause_s: float = 5.0) -> None:
+    """Translate each question once (paced for free-tier per-minute limits), persisted."""
+    if TRANSLATIONS_PATH.exists():
+        TRANSLATIONS.update(json.loads(TRANSLATIONS_PATH.read_text(encoding="utf-8")))
+    for q in questions:
+        if q in TRANSLATIONS or q.isascii():
+            continue
+        for attempt in range(6):
+            try:
+                TRANSLATIONS[q] = base.to_english(q)
+                break
+            except RuntimeError:
+                if attempt == 5:
+                    raise
+                time.sleep(65)
+        TRANSLATIONS_PATH.write_text(
+            json.dumps(TRANSLATIONS, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+        time.sleep(pause_s)
+
+
+EXTRA_RETRIEVAL: dict = {}  # extra retrieval overrides for bonus runs (e.g. translation)
+
+
 def evaluate_config(name: str, base: RAGPipeline, reranker: CachedReranker, items) -> dict:
     pipe = RAGPipeline(
         base.settings,
-        overrides=overrides_for(name),
+        overrides={
+            **overrides_for(name),
+            "retrieval": {**overrides_for(name)["retrieval"], **EXTRA_RETRIEVAL},
+        },
         dense=base.dense,
         sparse=base.sparse,
         rerank_fn=reranker,
     )
+    pipe._translations = TRANSLATIONS  # shared across configs (bonus: BM25 translation)
     rows = []
     for it in items:
         res = pipe.retrieve_full(it["question"])
@@ -198,9 +235,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--testset", type=Path, default=TESTSET_PATH, help="test set JSON")
     ap.add_argument("--tag", default="", help="suffix for output files (bonus experiments)")
     ap.add_argument("--embedding-model", help="override embedding.model (index must exist)")
+    ap.add_argument(
+        "--allow-missing-gold",
+        action="store_true",
+        help="continue when gold sections are absent (other releases)",
+    )
+    ap.add_argument(
+        "--translate-bm25",
+        action="store_true",
+        help="translate non-English questions to English for BM25 (bonus)",
+    )
     args = ap.parse_args(argv)
     names = list(CONFIGS) if args.all_ablations else args.configs.split(",")
     sfx = f"_{args.tag}" if args.tag else ""
+    if args.translate_bm25:
+        EXTRA_RETRIEVAL["translate_query_for_bm25"] = True
 
     overrides = {"embedding": {"model": args.embedding_model}} if args.embedding_model else None
     settings = load_settings(overrides)
@@ -208,8 +257,11 @@ def main(argv: list[str] | None = None) -> int:
     problems = validate_gold(items, load_chunks())
     if problems:
         print("Gold sections missing from chunks:", problems)
-        return 1
+        if not args.allow_missing_gold:
+            return 1
     base = RAGPipeline(settings)
+    if args.translate_bm25:
+        pretranslate(base, [it["question"] for it in items])
     reranker = CachedReranker(settings.reranker.model, settings.reranker.max_length)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,13 @@
+config,hybrid,reranker,routing,group,n,recall@1,recall@3,recall@5,recall@10,mrr,both_recall@1,both_recall@3,both_recall@5,both_recall@10
+baseline,False,False,False,all,27,0.4815,0.6667,0.8148,0.963,0.6155,,,,
+baseline,False,False,False,simple-23,10,0.5,0.8,0.9,1.0,0.67,,,,
+baseline,False,False,False,simple-24,10,0.5,0.6,0.8,0.9,0.6117,,,,
+baseline,False,False,False,cross,7,0.4286,0.5714,0.7143,1.0,0.543,0.0,0.0,0.0,0.2857
+no_hybrid,False,True,True,all,27,0.6667,0.8519,0.8889,1.0,0.7714,,,,
+no_hybrid,False,True,True,simple-23,10,0.7,0.9,1.0,1.0,0.7917,,,,
+no_hybrid,False,True,True,simple-24,10,0.8,1.0,1.0,1.0,0.9,,,,
+no_hybrid,False,True,True,cross,7,0.4286,0.5714,0.5714,1.0,0.5587,0.0,0.0,0.0,0.0
+best,True,True,True,all,27,0.6667,0.8148,0.8889,1.0,0.7586,,,,
+best,True,True,True,simple-23,10,0.7,0.9,1.0,1.0,0.7867,,,,
+best,True,True,True,simple-24,10,0.8,0.9,1.0,1.0,0.875,,,,
+best,True,True,True,cross,7,0.4286,0.5714,0.5714,1.0,0.5522,0.0,0.0,0.0,0.0
