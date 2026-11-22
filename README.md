@@ -21,7 +21,7 @@ flowchart LR
     R --> S[Sparse: BM25 + telecom tokenizer]
     D --> F[RRF fusion]
     S --> F
-    F --> X[Reranker<br/>bge-reranker-v2-m3]
+    F --> X[Reranker<br/>bge-reranker-base]
     X --> G{Score gate}
     G -- too low --> N[Refusal sentence]
     G -- ok --> K[Top-k + per-spec quota]
@@ -44,10 +44,12 @@ Pinned in `config.yaml`; provenance (URL, download date, SHA-256, size, docx nam
 
 - Python **3.11** (3.12 should also work; 3.14 is not recommended with torch).
 - ~8 GB RAM; CPU only is fine (CUDA/MPS used automatically if present).
-- ~5 GB disk for the two Hugging Face models (bge-m3 and bge-reranker-v2-m3, downloaded
-  automatically on first use).
+- ~4 GB disk for the Hugging Face models (bge-m3 2.3 GB and bge-reranker-base 1.1 GB,
+  downloaded automatically on first use; bge-reranker-v2-m3, 2.3 GB, only if you switch back
+  to the multilingual reranker).
 - Docker (optional, default vector store) — otherwise Qdrant's local on-disk mode is used.
-- API keys: Google Gemini (primary LLM) and xAI Grok (fallback). One key is enough to run.
+- API keys: Google Gemini (primary LLM); Groq (free tier, first fallback) and/or xAI Grok
+  (second fallback). One key is enough to run.
 
 ## Installation
 
@@ -68,8 +70,10 @@ pip install -e ".[dev]" --no-deps # the project itself (or simply: pip install -
 cp .env.example .env
 ```
 
-Fill in `GEMINI_API_KEY` (from <https://aistudio.google.com/apikey>) and `XAI_API_KEY`
-(from <https://console.x.ai>). Model IDs are set in `.env` (`GEMINI_MODEL`, `GROK_MODEL`);
+Fill in `GEMINI_API_KEY` (from <https://aistudio.google.com/apikey>), `GROQ_API_KEY` (from
+<https://console.groq.com/keys>, starts with `gsk_`) and/or `XAI_API_KEY` (from
+<https://console.x.ai>, starts with `xai-`; Groq and Grok are different services). Model IDs
+are set in `.env` (`GEMINI_MODEL`, `GROQ_MODEL`, `GROK_MODEL`);
 list the IDs your keys can use with:
 
 ```bash
@@ -228,10 +232,10 @@ Corpus variants are selected with `RAG_CONFIG` and get their own `data/processed
 | bge-m3 dense embeddings | strong multilingual retriever (Chen et al. 2024), 8k context, enables French questions |
 | BM25 with a telecom tokenizer | exact identifiers (`T3510`, `cause #9`, `S-NSSAI`, `5.5.1.2.4`) are where dense models are weakest |
 | Reciprocal Rank Fusion (k = 60) | parameter-free fusion of heterogeneous scores |
-| Cross-encoder reranker + score gate | reorders the 30 fused candidates; its calibrated score decides when to refuse *before* calling the LLM |
-| Rule-based router | the two specs are complementary (Stage 2 vs Stage 3); filtering by spec removes look-alike clauses |
-| Gemini primary, Grok fallback | free-tier rate limits and outages; every answer records the provider/model actually used. Default model `gemini-3.5-flash-lite` (flash models: 20 requests/day on the free tier); `llm.max_tokens` = 8192 because Gemini 3.x thinking tokens share the output budget |
-| Calibrated score gate | reranker threshold 0.45 / dense threshold 0.25 chosen by `eval.run_retrieval_eval` (max refusal rate with zero false refusals), stored in `config.yaml` |
+| Cross-encoder reranker + score gate | `bge-reranker-base` reorders the 15 best fused candidates (512 tokens each); chosen by a CPU speed/quality benchmark (`eval/results/reranker_bench.csv`: 3.9 s instead of 43.8 s per answer for bge-reranker-v2-m3 with 30 candidates, MRR within 0.02). Its calibrated score decides when to refuse *before* calling the LLM |
+| Rule-based router (v2) | the two specs are complementary (Stage 2 vs Stage 3); filtering by spec removes look-alike clauses. v2 sends a question to both specs when it mixes architecture and NAS signals or asks about a procedure and its messages; tuned only on `tests/test_router.py`; `retrieval.router_version: 1` restores the original rules |
+| Gemini primary, Groq then Grok fallbacks | free-tier rate limits and outages; providers without a key are skipped; a 429 waits for the API's Retry-After before retrying or falling back; every answer records the provider/model actually used. Default model `gemini-3.5-flash-lite` (flash models: 20 requests/day on the free tier); `llm.max_tokens` = 8192 because Gemini 3.x thinking tokens share the output budget |
+| Calibrated score gate | reranker threshold 0.10 (bge-reranker-base; 0.45 for bge-reranker-v2-m3) / dense threshold 0.25 chosen by `eval.run_retrieval_eval` (max refusal rate with zero false refusals), stored in `config.yaml` |
 | Citation check | removes citations to sections that were not retrieved, flags ungrounded answers |
 | No LangChain / LlamaIndex | every component is a small swappable module, which is what the ablations need |
 

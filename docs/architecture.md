@@ -17,12 +17,12 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    U["Question"] --> R["Router (rules)<br/>TS 23.501 · TS 24.501 · both"]
+    U["Question"] --> R["Router v2 (rules)<br/>TS 23.501 · TS 24.501 · both"]
     R --> D["Dense search<br/>Qdrant top 50, spec filter"]
     R --> S["BM25 top 50, spec filter"]
-    D --> F["Reciprocal Rank Fusion<br/>k = 60 → top 30"]
+    D --> F["Reciprocal Rank Fusion<br/>k = 60 → top 15"]
     S --> F
-    F --> X["Cross-encoder reranker<br/>bge-reranker-v2-m3 (sigmoid)"]
+    F --> X["Cross-encoder reranker<br/>bge-reranker-base, 512 tokens (sigmoid)"]
     X --> G{"Score gate<br/>max rerank ≥ threshold?"}
     G -- no --> REF["I could not find this information<br/>in the documents."]
     G -- yes --> K["Final top-k = 6<br/>≥2 per spec on cross routes<br/>adjacent parts merged"]
