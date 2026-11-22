@@ -39,13 +39,21 @@ slides after validation.
 ## 7. Hybrid retrieval + RRF
 - Dense bge-m3 (1024-d, Qdrant cosine) + BM25 with telecom tokenizer (`cause_9`, `t3510`,
   `s-nssai`/`snssai`, section numbers).
-- RRF k = 60, top 30 fused candidates.
+- RRF k = 60; the top 15 fused candidates go to the reranker.
+- Finding: with the reranker on, BM25 fusion *lowers* MRR (−0.07, 95% CI excludes 0): BM25
+  candidates take slots in the small reranker pool. Dense + reranker is the best retrieval.
 
 ## 8. Reranker and routing
-- bge-reranker-v2-m3 cross-encoder (sigmoid score) → reorder; best score drives the gate.
-- Rule-based router (NAS signals vs architecture signals, explicit spec mentions, cross
-  phrases) + ≥2 chunks per spec for cross questions. Router accuracy: exact route 10/10
-  simple 23.501, 9/10 simple 24.501, but only 1/7 cross questions routed to both specs.
+- Cross-encoder reranker; its best score drives the refusal gate (calibrated threshold).
+- CPU benchmark (`figures`/table from `eval/results/reranker_bench.csv`): bge-reranker-v2-m3
+  with 30 candidates × 1,024 tokens = 43.8 s per answer; bge-reranker-base with 15 × 512 =
+  3.9 s, MRR 0.747 vs 0.734 → new default (end-to-end 48 s → 7.6 s). Trade-off: answer
+  correctness of `best` 0.88 → 0.80 (−0.08, CI [−0.23, +0.05]: not established, but 5
+  questions lost a key chunk).
+- Rule-based router v2 (architecture AND NAS signals → both; "procedure … messages" → both),
+  tuned only on `tests/test_router.py` (12 new cross-spec questions): exact route 0.74 →
+  0.78, cross questions routed to both 1/7 → 2/7; retrieval unchanged → cross-spec remains
+  the weak spot.
 
 ## 9. Generation, citations, refusal
 - System prompt rules (English, only sources, cite labels, exact refusal).
@@ -53,16 +61,18 @@ slides after validation.
   flags ungrounded answers; score gate refuses before calling the LLM.
 
 ## 10. LLM layer
-- Gemini primary → Grok fallback (retry with backoff on transient errors, immediate fallback
-  on permanent ones); provider/model recorded per answer.
-- Practical constraints met: free-tier flash models allow 20 requests/day → evaluation on
-  `gemini-3.5-flash-lite`; Gemini 3.x thinking tokens share the output budget →
-  `max_tokens` 8192; resumable evaluation cache with rate-limit cool-downs.
+- Chain Gemini → Groq → Grok (providers without a key are skipped); on HTTP 429 the client
+  waits for the API's Retry-After, then falls back; provider/model recorded per answer.
+- Free-tier reality: Gemini flash 20 req/day, flash-lite 500 req/day; Groq 8k tokens/min and
+  200k tokens/day; prompts > 8k tokens rejected by Groq (413) → resumable, cached evaluation.
+- Gemini 3.x thinking tokens share the output budget → `max_tokens` 8192.
 
 ## 11. Demo
-- Screenshots of the web app (`docs/screenshots/chat.png`, `refusal.png`, `evaluation.png`,
-  `chat_390.png`): answer with citation chips, sources panel with scores,
-  toggles, refusal box.
+- Web app (FastAPI + static HTML/CSS/JS, `UI_SPEC.md`): screenshots
+  `docs/screenshots/chat.png`, `refusal.png`, `evaluation.png`, `chat_390.png`.
+- Citation chips open and highlight the source; refusal card says whether the gate or the
+  LLM refused; fallback badge "answered by Groq"; settings sidebar; evaluation page.
+- Acceptance checklist verified in headless Edge: 24/24 checks.
 
 ## 12. Evaluation setup
 - 30 questions: 20 simple (10 per spec), 7 cross-spec, 3 out-of-corpus; gold sections found
@@ -70,26 +80,24 @@ slides after validation.
 - 8 retrieval configurations (hybrid × reranker × routing); generation on 5 configurations.
 
 ## 13. Results (preliminary — gold set pending human validation)
-- Chart: `figures/retrieval_ablation.png`. Key rows (R@5 / MRR): best 0.852 / 0.734;
-  dense + reranker (no_hybrid) 0.926 / 0.790; no_reranker 0.815 / 0.622; baseline (dense
-  only) 0.889 / 0.677. Simple questions R@5 = 1.0; cross questions R@5 = 0.43.
-- Chart: `figures/generation_gemini.png` (gemini-3.5-flash-lite, LLM judge): best —
-  faithfulness 0.97, correctness 0.88, citation accuracy 0.98, refusal F1 0.75 (3/3
-  out-of-corpus refused, 2 false refusals on cross questions); no_reranker correctness 0.77,
-  6 false refusals.
-- Gate calibration chart `figures/gate_max_rerank.png`: OOC ≤ 0.20 vs in-corpus ≥ 0.66 →
-  threshold 0.45; dense cosine cannot separate (`figures/gate_max_dense.png`).
-- Latency (CPU): 48 s with reranker (43.6 s reranking), 2 s without.
+- Retrieval (`figures/retrieval_ablation.png`), current defaults, R@5 / MRR: best 0.815 /
+  0.747; dense + reranker (no_hybrid) 0.852 / 0.817; no_reranker 0.815 / 0.622; baseline
+  (dense only) 0.889 / 0.677. Simple questions R@5 = 1.0; cross questions ≈ 0.4.
+- Generation (`figures/generation_gemini.png`, gemini-3.5-flash-lite answers + judge): best
+  faithfulness 1.00, correctness 0.80, citation accuracy 0.97; all 3 out-of-corpus questions
+  refused; all false refusals are LLM refusals (gate refused none), mostly cross questions.
+- Cross-judge 2×2 (Gemini vs Groq answers × Gemini vs Groq judges) on the common judged
+  questions: no self-preference larger than one question so far (table in REPORT.md).
+- Latency (CPU): 7.6 s per answer (rerank 4.1 s, LLM 3.3 s), 3.0 s without the reranker.
 
 ## 14. Analysis
-- Reranker = biggest gain (MRR +0.11, correctness +0.11) and the only reliable refusal
-  signal; it also reduces false refusals because better context reaches the LLM.
+- Reranker = the only robust ranking gain (MRR +0.13 with everything else on) and the refusal
+  signal; but its candidate pool size and model trade latency against answer quality.
 - Structural chunks + contextual headers make simple questions easy (R@5 = 1.0).
-- BM25 helps exact identifiers without reranker, but crowds the reranker's 30 slots when
-  fused → dense + reranker is best here; a separate candidate pool per retriever is the fix.
-- Routing filters look-alike clauses on simple questions but under-routes cross questions
-  (NAS vocabulary dominates) → cross-spec questions are the main failure mode.
-- Citation checker: citation accuracy ≥ 0.97 in every config; no ungrounded answers.
+- BM25 helps exact identifiers without reranker, but hurts in the reranker's small pool.
+- Cross-spec questions: routing rules alone do not fix them; the LLM refuses half-covered
+  questions → query decomposition per spec is the next step.
+- Statistical caution: n = 27, one question = 0.037 of recall; most differences are noise.
 
 ## 15. Limits and perspectives
 - Small, author-drafted test set (pending validation); LLM judge instead of RAGAS; figures as

@@ -268,15 +268,45 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 - Generation cache now regenerates answers whose settings (incl. router version, reranker
   length/top-n) differ from the current run — prevents stale numbers after default changes.
 
+### Follow-up round — final state
+- Generation re-run with the new defaults: best / baseline / no_hybrid done (best
+  correctness 0.80, faithfulness 1.00, citation accuracy 0.97); no_reranker / no_routing
+  pending (Gemini 500/day quota, partly spent twice because a stopped chain left a process
+  waiting on the same probe — both produced valid answers with identical settings).
+  The complete previous-defaults run is kept (`generation_gemini_router_v1.csv`).
+- best correctness 0.88 → 0.80 with the faster reranker: 5 questions refused by the LLM
+  because a key chunk dropped out of the top 6 (s23-01 lost §6.2.1, s23-07 the 5QI-1 row),
+  2 improved; paired Δ −0.08, CI [−0.23, +0.05]. Documented as a speed/quality trade-off;
+  switching back is a one-line config change.
+- Real latency (warm, CPU): best 7.6 s per answer (rerank 4.1 s, LLM 3.3 s, measured with
+  gemini-3.1-flash-lite because the flash-lite quota was spent); no_reranker 3.0 s.
+- Groq answer set: 27/30 (x-05 rejected as too large / daily cap, x-06 and x-07 pending the
+  Groq daily token window; o-01..o-03 refused at the gate). My earlier note "6 prompts too
+  large" was wrong: only x-05 got HTTP 413; the run then stopped.
+- Cross-judge: Gemini judge done on all frozen answers; Groq judge limited by 200k tokens/day
+  (~1 judgement / 40 min) → 2×2 currently on 9 common questions; the pass keeps running
+  (`python -m eval.run_cross_judge --judge groq`, resumable).
+- Rel-17 bonus re-run with the current defaults: 30/30 (MRR 0.709 vs 0.747 Rel-18;
+  correctness 0.83 vs 0.80).
+- Bonus sections 1–4 now compare against reference rows produced with the same (previous)
+  settings.
+
 ## Open issues
 - Cross-spec questions are the main failure mode (routing + retrieval), see REPORT.md.
 - Rel-17 generation bonus partial (quota) — resumable.
 
 ## Blocked / needs human
-- xAI Grok: the key provided was a **Groq** key (`gsk_…`), not an xAI key. Resolved by adding
-  Groq as first fallback (`GROQ_API_KEY`, model openai/gpt-oss-120b, free tier 8,000 tokens/min
-  → ~1 RAG answer/min). A real xAI key (`xai-…`) is still needed for Grok itself.
-- Test set validation (all 30 items `verified: false`) — see `eval/testset_review.md`; all
-  reported numbers are preliminary until then.
-- Gemini free-tier quotas (20 requests/day for flash models, 500/day for flash-lite) limit
-  re-runs; a paid key or waiting for the daily reset is needed for large re-runs.
+- **Test set validation**: all 30 items `verified: false` (`eval/testset_review.md`); every
+  reported number is preliminary until then.
+- **Gemini free-tier quota** (500 requests/day for gemini-3.5-flash-lite): finish the
+  generation table with
+  `python -m eval.run_generation_eval --provider gemini --configs no_reranker,no_routing`
+  then `python -m eval.make_report` (≈ 120 requests).
+- **Groq free-tier daily token cap** (200k tokens/day for openai/gpt-oss-120b): the Groq
+  judge pass and the last Groq answers (x-06, x-07) trickle in; resume with
+  `python -m eval.run_cross_judge --judge groq` and the Groq generation command in the README.
+- **xAI Grok**: needs a real `xai-` key in `XAI_API_KEY` (the earlier key was a Groq key).
+- **Answer quality vs speed**: choose between `bge-reranker-base` (default, 7.6 s/answer,
+  best correctness 0.80) and `bge-reranker-v2-m3` (≈ 48 s/answer on this CPU, 0.88, and
+  multilingual) — `reranker.model` / `retrieval.fused_top_n` / `reranker.max_length` /
+  `gate.reranker_threshold` in `config.yaml`.
