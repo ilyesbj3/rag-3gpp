@@ -86,7 +86,7 @@ Everything else (chunk sizes, retrieval depths, thresholds, ablation flags) is i
 python scripts/download_corpus.py             # 1. corpus → data/raw/ + data/VERSIONS.md
 docker compose up -d qdrant                   # 2. vector DB (Docker, default)
 python -m src.index.build_index --rebuild     # 3. parse → chunk → embed → Qdrant + BM25
-streamlit run app/streamlit_app.py            # 4. demo at http://localhost:8501
+uvicorn app.server:app --host 127.0.0.1 --port 8000   # 4. open http://127.0.0.1:8000  (or: make app)
 ```
 
 - **Without Docker**: set `qdrant.url: ""` in `config.yaml` (local on-disk mode in
@@ -102,6 +102,24 @@ streamlit run app/streamlit_app.py            # 4. demo at http://localhost:8501
   toggle off in the sidebar for ≈ 2 s answers.
 
 `make` shortcuts for all commands are in the `Makefile`.
+
+### Web app
+
+FastAPI serves the API (`/api/health`, `/api/ask`, `/api/examples`, `/api/eval`) and the
+static frontend from `app/web/` (plain HTML/CSS/JS, no build step; specification in
+[`UI_SPEC.md`](UI_SPEC.md)). The pipeline and models load once at startup (warm-up ≈ 30 s on
+CPU); if the index or Qdrant is missing the page shows the command that fixes it.
+
+- Chat with citation chips: clicking one opens and highlights the source in the right panel.
+- Sidebar: hybrid / reranker / routing switches, chunks to the LLM, language model
+  (Auto = Gemini → Groq → Grok, skipping any provider without a key), example questions.
+- Refusals show whether the relevance gate refused (with the score and threshold) or the
+  LLM did; a fallback answer is badged "Fallback: answered by Groq".
+- Evaluation page with the ablation tables read from `eval/results/`.
+
+| Chat | Refusal | Evaluation | Phone (390 px) |
+|---|---|---|---|
+| ![chat](docs/screenshots/chat.png) | ![refusal](docs/screenshots/refusal.png) | ![evaluation](docs/screenshots/evaluation.png) | ![phone](docs/screenshots/chat_390.png) |
 
 ## Evaluation
 
@@ -257,7 +275,7 @@ src/         config.py · schemas.py · pipeline.py
   index/     embed.py · qdrant_store.py · bm25_store.py · build_index.py
   retrieval/ router.py · hybrid.py · reranker.py
   generation/ prompts.py · llm.py · citation_check.py
-app/         streamlit_app.py
+app/         server.py (FastAPI) · api_models.py · web/ (HTML, CSS, JS, vendored marked + DOMPurify)
 eval/        testset.json · testset_review.md · metrics.py · configs.py ·
              run_retrieval_eval.py · run_generation_eval.py · make_report.py · results/
 docs/        architecture.md · presentation_outline.md

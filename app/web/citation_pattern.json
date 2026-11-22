@@ -1,0 +1,5 @@
+{
+ "bracket": "\\[([^\\[\\]]*?TS\\s?\\d{2}\\.\\d{3}[^\\[\\]]*?)\\]",
+ "citation": "TS\\s?(?<spec>\\d{2}\\.\\d{3})\\s?(?:\u00a7|Section|clause)\\s?(?<section>(?:[A-Z]\\.)?\\d+[A-Za-z]?(?:\\.\\d+[A-Za-z]?)*|[A-Z])(?![\\w.])",
+ "flags": "gi"
+}

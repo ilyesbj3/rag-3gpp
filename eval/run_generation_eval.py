@@ -71,6 +71,26 @@ def save_cache(path: Path, rows: dict[str, dict[str, Any]]) -> None:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
+# Settings that change the answer; a cached answer is reused only when they all match.
+SNAPSHOT_KEYS = {  # key -> value assumed for rows cached before the key existed
+    "use_hybrid": None,
+    "use_reranker": None,
+    "use_routing": None,
+    "final_top_k": None,
+    "fused_top_n": None,
+    "reranker_model": None,
+    "reranker_threshold": None,
+    "dense_threshold": None,
+    "router_version": 1,
+    "reranker_max_length": 1024,
+}
+
+
+def stale(row: dict[str, Any], current: dict[str, Any]) -> bool:
+    snap = row.get("answer", {}).get("config_snapshot", {})
+    return any(snap.get(k, default) != current.get(k) for k, default in SNAPSHOT_KEYS.items())
+
+
 def run_config(
     name: str,
     provider: str,
@@ -99,8 +119,14 @@ def run_config(
         sparse=base.sparse,
         rerank_fn=reranker,
     )
+    current = pipe.config_snapshot()
+    n_stale = sum(stale(r, current) for r in rows.values())
+    if n_stale:
+        print(f"   {n_stale} cached answers were produced with other settings: regenerating")
     for it in items:
         row = rows.get(it["id"])
+        if row is not None and stale(row, current):  # pipeline changed since it was cached
+            row = None
         if row is None:
             try:
                 ans = pipe.answer(it["question"])

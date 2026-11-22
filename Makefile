@@ -33,7 +33,7 @@ models:
 	$(PY) -m src.generation.llm --list
 
 app:
-	streamlit run app/streamlit_app.py
+	$(PY) -m uvicorn app.server:app --host 127.0.0.1 --port 8000
 
 review:
 	$(PY) -m eval.make_testset_review

@@ -60,7 +60,8 @@ slides after validation.
   `max_tokens` 8192; resumable evaluation cache with rate-limit cool-downs.
 
 ## 11. Demo
-- Screenshots of the Streamlit app: answer with citation badges, sources panel with scores,
+- Screenshots of the web app (`docs/screenshots/chat.png`, `refusal.png`, `evaluation.png`,
+  `chat_390.png`): answer with citation chips, sources panel with scores,
   toggles, refusal box.
 
 ## 12. Evaluation setup

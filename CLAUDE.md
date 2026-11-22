@@ -100,7 +100,7 @@ Chen et al. 2024 (BGE M3, arXiv:2402.03216) · Es et al. 2023 (RAGAS, arXiv:2309
 | Fusion | Reciprocal Rank Fusion, own code | k = 60 |
 | Reranker | `BAAI/bge-reranker-v2-m3` via `sentence_transformers.CrossEncoder` | sigmoid scores in [0,1] |
 | LLM | **Gemini primary → Groq (free tier) → Grok (xAI) fallbacks** (`google-genai`, `openai` SDK) | code in Appendix A; providers without a key are skipped |
-| UI | Streamlit | |
+| UI | FastAPI + Uvicorn backend, static HTML/CSS/JS frontend (no build step); vendored `marked` + `DOMPurify` | spec in `UI_SPEC.md` |
 | Eval | own retrieval metrics; RAGAS for faithfulness/correctness; own citation & refusal metrics | |
 | Quality | `pytest`, `ruff` (lint + format), `pre-commit` optional | |
 | Plots | `matplotlib` for result charts used in the slides | |
@@ -163,8 +163,12 @@ rag-3gpp/
 │   │   ├── llm.py             # Appendix A — copy verbatim
 │   │   └── citation_check.py
 │   └── pipeline.py            # RAGPipeline
+├── UI_SPEC.md                 # web interface spec (replaces the former Streamlit app)
 ├── app/
-│   └── streamlit_app.py
+│   ├── server.py              # FastAPI: /api/health, /api/ask, /api/examples, /api/eval + static files
+│   ├── api_models.py          # request/response models
+│   ├── examples.json          # fallback example questions
+│   └── web/                   # index.html, styles.css, js/*.js, vendor/ (marked, DOMPurify)
 ├── eval/
 │   ├── __init__.py
 │   ├── testset.json
@@ -531,21 +535,12 @@ retrieval eval without calling the LLM). The LLM is injectable (fake LLM in test
 
 ---
 
-## 10. Interface (`app/streamlit_app.py`)
-- `st.set_page_config(page_title="3GPP 5G RAG Assistant", layout="wide")`.
-- Pipeline built once with `st.cache_resource`.
-- **Sidebar**: toggles Hybrid / Reranker / Routing; LLM provider select (auto / gemini / grok);
-  final top-k slider; corpus info (spec, version, release, #chunks) from `data/VERSIONS.md`
-  and the index; a "Example questions" list (click to ask).
-- **Main**: chat (`st.chat_input`, `st.chat_message`), history in `st.session_state`.
-- Each answer shows: answer text (citations rendered as badges), badges for route decision,
-  LLM provider/model (+ "fallback used" warning), gate score, total latency; warnings in red.
-- **Sources panel**: one `st.expander` per retrieved chunk: `[TS x §y] title`, scores (dense,
-  BM25 rank, RRF, rerank), content type, full text (tables as Markdown). Cited sources
-  highlighted; uncited ones dimmed.
-- Refusals displayed with a distinct info box.
-- Must work with no GPU and show a clear error if Qdrant/index or API keys are missing
-  (with the command to fix it).
+## 10. Interface
+The demo is a FastAPI backend (`app/server.py`) serving a static web frontend (`app/web/`).
+**`UI_SPEC.md` is the specification** (API contract, design tokens, layout, behaviour,
+acceptance checklist); it replaces the former Streamlit app. Run it with
+`uvicorn app.server:app --host 127.0.0.1 --port 8000` and open http://127.0.0.1:8000.
+Screenshots: `docs/screenshots/`. API tests: `tests/test_api.py` (fake pipeline, no network).
 
 ---
 
@@ -656,7 +651,7 @@ python -m src.ingest.chunker                      # parse + chunk only (+ parse_
 python scripts/sample_chunks.py                   # data/processed/chunk_samples.md
 python -m src.index.build_index --rebuild         # parse → chunk → embed → index
 python -m src.generation.llm --list               # model IDs available to your keys
-streamlit run app/streamlit_app.py
+uvicorn app.server:app --host 127.0.0.1 --port 8000   # web UI → http://127.0.0.1:8000
 python -m eval.make_testset_review                # eval/testset_review.md
 python -m eval.run_retrieval_eval --all-ablations
 python -m eval.run_generation_eval --provider gemini --configs best,baseline,no_hybrid,no_reranker,no_routing
@@ -704,7 +699,7 @@ pytest -q && ruff check . && ruff format --check .
 | 4 | Embeddings + Qdrant + BM25 + `build_index` | index built; a dense-only and BM25-only query print sensible results |
 | 5 | Router, hybrid (RRF), reranker, quotas, gate + tests | `pipeline.retrieve` works with all flag combos |
 | 6 | Prompts, citation check, `RAGPipeline.answer` + smoke test with fake LLM | end-to-end answer with real LLM on 3 questions |
-| 7 | Streamlit app | demo usable, sources shown, toggles work |
+| 7 | Web app (FastAPI + static frontend, `UI_SPEC.md`; replaced the first Streamlit version) | demo usable, sources shown, toggles work, UI_SPEC acceptance checklist passes |
 | 8 | Test set draft + review file | `testset.json` (30 items) + `testset_review.md` delivered for human validation |
 | 9 | Retrieval eval (8 configs) + gate calibration | CSV + table |
 | 10 | Generation eval + report | `REPORT.md` + figures |

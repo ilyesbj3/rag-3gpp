@@ -27,9 +27,9 @@ flowchart TD
     G -- no --> REF["I could not find this information<br/>in the documents."]
     G -- yes --> K["Final top-k = 6<br/>≥2 per spec on cross routes<br/>adjacent parts merged"]
     K --> PR["Prompt: system rules +<br/>&lt;source label='[TS x §y]'&gt; blocks"]
-    PR --> L["LLM: Gemini → Grok fallback<br/>temperature 0"]
+    PR --> L["LLM: Gemini → Groq → Grok fallback<br/>temperature 0"]
     L --> CC["Citation check<br/>invalid citations removed ·<br/>refusal normalized · warnings"]
-    CC --> A["Answer + sources + scores<br/>(Streamlit UI)"]
+    CC --> A["Answer + sources + scores<br/>(web UI)"]
 ```
 
 ## Modules
@@ -44,7 +44,7 @@ flowchart TD
 | Retrieval | `src/retrieval/router.py`, `hybrid.py`, `reranker.py` | routing, RRF, quotas, part merging, reranking |
 | Generation | `src/generation/prompts.py`, `llm.py`, `citation_check.py` | prompt, LLM fallback, citation validation |
 | Orchestration | `src/pipeline.py` | `RAGPipeline.retrieve()` / `.answer()`, score gate, timings |
-| UI | `app/streamlit_app.py` | chat, toggles, sources panel |
+| UI | `app/server.py`, `app/web/` | FastAPI API + static web frontend (UI_SPEC.md): chat, toggles, sources panel, evaluation page |
 | Evaluation | `eval/` | test set, retrieval and generation evaluations, report |
 
 Every component is injectable in `RAGPipeline` (dense searcher, BM25, embedder, reranker,

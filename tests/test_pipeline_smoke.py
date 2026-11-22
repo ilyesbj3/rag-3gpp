@@ -164,3 +164,24 @@ def test_bm25_query_translation_uses_llm_once():
     p.retrieve_full("Quand le temporisateur T3510 démarre-t-il ?")
     assert len(llm.calls) == 1  # cached
     assert p.to_english("ascii question") == "ascii question"
+
+
+def test_generation_cache_staleness():
+    from eval.run_generation_eval import stale
+
+    current = {
+        "use_hybrid": True,
+        "use_reranker": True,
+        "use_routing": True,
+        "final_top_k": 6,
+        "fused_top_n": 30,
+        "reranker_model": "m",
+        "reranker_threshold": 0.45,
+        "dense_threshold": 0.25,
+        "router_version": 2,
+        "reranker_max_length": 1024,
+    }
+    old = {k: v for k, v in current.items() if k not in ("router_version", "reranker_max_length")}
+    assert stale({"answer": {"config_snapshot": old}}, current)  # cached before router v2
+    assert not stale({"answer": {"config_snapshot": dict(current)}}, current)
+    assert stale({"answer": {"config_snapshot": {**current, "fused_top_n": 15}}}, current)

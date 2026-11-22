@@ -1,0 +1,17 @@
+{
+ "architecture": [
+  "What is the role of the AMF in the 5G System?",
+  "Which functionalities does the SMF provide?",
+  "What functionality does the UPF support?"
+ ],
+ "nas": [
+  "What does cause #9 mean in 5GMM?",
+  "What does 5GMM cause #22 indicate?",
+  "What does 5GSM cause #27 indicate?"
+ ],
+ "cross": [
+  "Describe the registration procedure and the NAS messages exchanged between the UE and the AMF.",
+  "How is a PDU session established, and which 5GSM messages are exchanged?",
+  "How does the UE indicate the network slices it wants during registration, and how is the NSSAI encoded in NAS?"
+ ]
+}

@@ -162,6 +162,13 @@ class RAGPipeline:
             rerank_fn=self._rerank_fn,
         )
 
+    def chunk_counts(self) -> dict[str, int]:
+        """Indexed chunks per spec (from the BM25 store, which holds every chunk)."""
+        from collections import Counter
+
+        chunks = getattr(self.sparse, "chunks", None) or []
+        return dict(Counter(c.spec for c in chunks))
+
     def gate_threshold(self) -> tuple[float, str]:
         """(threshold, kind) of the active score gate."""
         g = self.settings.gate

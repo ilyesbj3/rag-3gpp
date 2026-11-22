@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3GPP 5G Assistant</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/marked.min.js" defer></script>
+  <script src="vendor/purify.min.js" defer></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">5G</div>
+      <div>
+        <div class="brand-name">3GPP 5G Assistant</div>
+        <div class="brand-sub">Grounded answers from Release 18 specifications</div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Main">
+      <a href="#/chat" id="nav-chat">Chat</a>
+      <a href="#/evaluation" id="nav-eval">Evaluation</a>
+    </nav>
+    <div class="header-right" id="header-right">
+      <span id="corpus-chips" class="header-right"></span>
+      <span class="pill" id="llm-pill"><span class="dot" aria-hidden="true"></span><span class="pill-text">Checking…</span></span>
+    </div>
+  </header>
+
+  <div id="health-banner" class="banner banner-danger" role="alert" hidden>
+    <span id="health-message"></span>
+    <code id="health-fix" class="mono"></code>
+    <button class="btn btn-small" id="health-retry" type="button">Retry</button>
+  </div>
+
+  <main id="view-chat" class="chat-layout">
+    <aside class="settings" id="settings" aria-label="Settings">
+      <button class="btn btn-block" id="new-chat" type="button">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New chat
+      </button>
+      <div class="section-label" id="lbl-pipeline">Retrieval pipeline</div>
+      <div class="switch-row">
+        <div class="switch-text"><div class="switch-label" id="lbl-hybrid">Hybrid search</div><div class="hint">Vector + BM25 (RRF)</div></div>
+        <button class="switch" role="switch" aria-checked="true" aria-labelledby="lbl-hybrid" data-setting="use_hybrid" type="button"></button>
+      </div>
+      <div class="switch-row">
+        <div class="switch-text"><div class="switch-label" id="lbl-rerank">Reranker</div><div class="hint">Cross-encoder rescoring</div></div>
+        <button class="switch" role="switch" aria-checked="true" aria-labelledby="lbl-rerank" data-setting="use_reranker" type="button"></button>
+      </div>
+      <div class="switch-row">
+        <div class="switch-text"><div class="switch-label" id="lbl-routing">Spec routing</div><div class="hint">Filter by TS 23.501 / 24.501</div></div>
+        <button class="switch" role="switch" aria-checked="true" aria-labelledby="lbl-routing" data-setting="use_routing" type="button"></button>
+      </div>
+      <div class="field">
+        <label for="top-k">Chunks to the LLM</label>
+        <input id="top-k" type="number" min="3" max="10" step="1" value="6">
+      </div>
+      <div class="section-label" id="lbl-llm">Language model</div>
+      <div class="segmented" role="radiogroup" aria-labelledby="lbl-llm" id="provider-group">
+        <button type="button" role="radio" data-provider="auto" aria-checked="true">Auto</button>
+        <button type="button" role="radio" data-provider="gemini" aria-checked="false">Gemini</button>
+        <button type="button" role="radio" data-provider="groq" aria-checked="false">Groq</button>
+      </div>
+      <div class="hint mt8" id="provider-hint">Auto uses the first configured model and falls back to the next one if it fails.</div>
+      <div class="applies" id="applies" aria-live="polite"></div>
+      <div class="section-label" id="lbl-examples">Example questions</div>
+      <div id="sidebar-examples"></div>
+    </aside>
+
+    <section class="chat-col" aria-label="Chat">
+      <div class="chat-topbar">
+        <button class="btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          Settings
+        </button>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="composer-wrap" id="composer-wrap">
+        <form class="composer" id="composer">
+          <label for="question" class="sr-only">Your question</label>
+          <textarea id="question" rows="2" maxlength="1200"
+            placeholder="Ask about 5G architecture, procedures or NAS messages…"></textarea>
+          <span class="counter" id="counter" hidden></span>
+          <button class="send" id="send" type="submit" aria-label="Send question" disabled>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+        <div class="composer-note">Answers are in English and come only from TS 23.501 and TS 24.501 (Release 18).</div>
+      </div>
+    </section>
+
+    <aside class="sources" id="sources" aria-label="Sources">
+      <div class="panel-head"><h2 class="panel-title">Sources</h2><span class="panel-meta" id="sources-meta"></span></div>
+      <div id="sources-list"><div class="placeholder">Sources for an answer appear here.</div></div>
+    </aside>
+  </main>
+
+  <main id="view-eval" class="eval-page" hidden></main>
+
+  <div class="sr-only" aria-live="polite" id="live"></div>
+</body>
+</html>
