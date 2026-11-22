@@ -73,7 +73,7 @@ class ProviderError(RuntimeError):
 
 def retry_after_seconds(text: str, headers=None) -> float | None:
     """Wait time from a `Retry-After` header or from messages such as
-    "Please try again in 8.93s", "try again in 1m2.5s", "Please retry in 59.7s"."""
+    "Please try again in 8.93s", "try again in 1m2.5s", "Please retry in 18h46m25.9s"."""
     if headers is not None:
         value = headers.get("retry-after")
         if value:
@@ -81,12 +81,13 @@ def retry_after_seconds(text: str, headers=None) -> float | None:
                 return float(value)
             except ValueError:
                 pass
-    m = re.search(r"(?:try|retry)(?: again)? in (?:(\d+)m)?([\d.]+)(ms|s)(?![a-z])", text)
+    m = re.search(r"(?:try|retry)(?: again)? in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)(ms|s)(?![a-z])",
+                  text)
     if not m:
         return None
-    minutes, value, unit = m.groups()
+    hours, minutes, value, unit = m.groups()
     secs = float(value) / 1000 if unit == "ms" else float(value)
-    return secs + 60 * int(minutes or 0)
+    return secs + 60 * int(minutes or 0) + 3600 * int(hours or 0)
 
 
 class LLMProvider(Protocol):

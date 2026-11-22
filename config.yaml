@@ -27,15 +27,19 @@ retrieval:
   use_reranker: true
   use_routing: true
   router_version: 2         # 1 = original rules, 2 = mixed architecture/NAS rules
+  routing_mode: "soft"      # hard = filter to routed spec(s) | soft = search both, boost routed spec
+  soft_routing_weight: 1.5  # RRF multiplier for the routed spec's chunks (soft mode)
+  bm25_weight: 0.5          # weight of the BM25 list in RRF (dense = 1); chosen by retrieval MRR
   translate_query_for_bm25: false  # bonus: translate non-English questions for BM25
 gate:
-  reranker_threshold: 0.10  # calibrated for bge-reranker-base (eval/results/gate_choice.json); 0.45 for v2-m3
-  dense_threshold: 0.25     # calibrated; dense scores do not separate out-of-corpus questions
+  reranker_threshold: 0.40  # calibrated for bge-reranker-v2-m3 @512 (eval/results/gate_choice.json)
+  dense_threshold: 0.55     # calibrated; thin margin (out-of-corpus max 0.559, in-corpus min 0.554)
 reranker:
-  model: "BAAI/bge-reranker-base"   # was bge-reranker-v2-m3: 11x faster on CPU, MRR within 0.02
+  model: "BAAI/bge-reranker-v2-m3"  # multilingual; configs/fast.yaml uses bge-reranker-base
   max_length: 512
 llm:
   provider: "auto"          # auto (gemini→groq→grok) | gemini | groq | grok
   temperature: 0
   max_tokens: 8192          # gemini-3.x "thinking" tokens count against this budget
+  prompt_version: 2         # 2 = refuse only when no source is relevant (src/generation/prompts.py)
 seed: 42

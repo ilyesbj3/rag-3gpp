@@ -173,9 +173,19 @@ def run_config(
     return rows
 
 
-def summarize(name: str, provider: str, rows: dict[str, dict[str, Any]], items) -> dict:
+def summarize(
+    name: str,
+    provider: str,
+    rows: dict[str, dict[str, Any]],
+    items,
+    current: dict[str, Any] | None = None,
+) -> dict:
+    """Aggregate one config. Rows cached with other settings (`current` snapshot) are left
+    out, so a run stopped by a quota never mixes old and new answers."""
     ids = [it["id"] for it in items]
     rs = [rows[i] for i in ids if i in rows and not rows[i].get("skipped")]
+    if current is not None:
+        rs = [r for r in rs if not stale(r, current)]
     flat = []
     for r in rs:
         a = r["answer"]
@@ -289,7 +299,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"   STOPPED (quota/rate limit): {stopped}")
                 rows = load_cache(cache_path(name, args.provider))
         reranker.save()
-        s = summarize(name, args.provider, rows, items)
+        snap_over = {**overrides_for(name)}
+        if args.provider != "ollama":
+            snap_over["llm"] = {"provider": args.provider}
+        current = RAGPipeline(base.settings, overrides=snap_over).config_snapshot()
+        s = summarize(name, args.provider, rows, items, current)
         summaries.append(s)
         print(
             f"   n={s['n']}/{s['n_expected']} faith {s['faithfulness']} corr "

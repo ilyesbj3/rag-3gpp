@@ -1,6 +1,6 @@
 {
- "reranker_threshold": 0.1,
- "dense_threshold": 0.25,
+ "reranker_threshold": 0.4,
+ "dense_threshold": 0.55,
  "status": "preliminary \u2014 gold set pending human validation",
  "rule": "max refusal TPR with zero false refusals; ties -> middle threshold"
 }

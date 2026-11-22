@@ -3,6 +3,7 @@
     python -m eval.run_cross_judge --judge groq      # judge both answer sets with Groq
     python -m eval.run_cross_judge --judge gemini    # ... with Gemini
     python -m eval.run_cross_judge --report-only     # just rebuild eval/results/cross_judge.csv
+    python -m eval.run_cross_judge --round final --judge groq   # new round on the final config
 
 Answer sets are FROZEN copies of `raw/gen_<config>_<provider>.jsonl` taken the first time
 this script runs (`raw/crossjudge/answers_<config>_<provider>.jsonl`), so later evaluation
@@ -39,6 +40,7 @@ from src.generation.prompts import build_user_prompt
 from src.schemas import Answer
 
 CJ_DIR = RAW_DIR / "crossjudge"
+ROUND = ""  # --round NAME: separate answer sets / judgements (e.g. after a config change)
 ANSWER_SETS = ("gemini", "groq")
 
 
@@ -50,9 +52,29 @@ def frozen_answers(config: str, provider: str) -> dict[str, dict[str, Any]]:
         src = RAW_DIR / f"gen_{config}_{provider}.jsonl"
         if not src.exists():
             return {}
+        if ROUND and not _matches_current(src):
+            print(f"   {src.name} has rows produced with other settings: not freezing yet")
+            return {}
         shutil.copyfile(src, frozen)
     rows = [json.loads(x) for x in frozen.read_text(encoding="utf-8").splitlines() if x]
     return {r["id"]: r for r in rows if not r.get("skipped")}
+
+
+def _matches_current(src: Path) -> bool:
+    """True when every answered row was produced with the current config.yaml settings."""
+    s = load_settings()
+    want = {
+        "reranker_model": s.reranker.model,
+        "reranker_max_length": s.reranker.max_length,
+        "fused_top_n": s.retrieval.fused_top_n,
+        "routing_mode": s.retrieval.routing_mode,
+        "bm25_weight": s.retrieval.bm25_weight,
+        "prompt_version": s.llm.prompt_version,
+        "reranker_threshold": s.gate.reranker_threshold,
+    }
+    rows = [json.loads(x) for x in src.read_text(encoding="utf-8").splitlines() if x]
+    snaps = [r["answer"]["config_snapshot"] for r in rows if not r.get("skipped")]
+    return bool(snaps) and all(all(sn.get(k) == v for k, v in want.items()) for sn in snaps)
 
 
 def judge_path(config: str, answers: str, judge: str) -> Path:
@@ -225,7 +247,7 @@ def report(config: str) -> list[dict[str, Any]]:
                     },
                 }
             )
-    out = RESULTS_DIR / "cross_judge.csv"
+    out = RESULTS_DIR / f"cross_judge{'_' + ROUND if ROUND else ''}.csv"
     if rows:
         with out.open("w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=list(rows[0]))
@@ -250,7 +272,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cooldowns", type=int, default=200)
     ap.add_argument("--max-hours", type=float, default=8.0, help="total waiting budget")
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument(
+        "--round",
+        default="",
+        help="name of a new cross-judge round (fresh frozen answer sets), e.g. final",
+    )
     args = ap.parse_args(argv)
+    global CJ_DIR, ROUND
+    if args.round:
+        ROUND, CJ_DIR = args.round, RAW_DIR / "crossjudge" / args.round
     if args.judge and not args.report_only:
         run_judge(args.config, args.judge, args.sleep, args.cooldowns, args.max_hours)
     for r in report(args.config):

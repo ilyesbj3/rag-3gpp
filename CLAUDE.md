@@ -98,7 +98,7 @@ Chen et al. 2024 (BGE M3, arXiv:2402.03216) · Es et al. 2023 (RAGAS, arXiv:2309
 | Vector DB | Qdrant (Docker `qdrant/qdrant`, port 6333) via `qdrant-client`; local on-disk mode (`path=data/index/qdrant`) as a no-Docker fallback | cosine distance |
 | Sparse | `bm25s` with the custom tokenizer from §6 | persisted to `data/index/bm25/` |
 | Fusion | Reciprocal Rank Fusion, own code | k = 60 |
-| Reranker | `BAAI/bge-reranker-base` via `sentence_transformers.CrossEncoder` (default since the CPU benchmark; `BAAI/bge-reranker-v2-m3` for multilingual) | sigmoid scores in [0,1] |
+| Reranker | `BAAI/bge-reranker-v2-m3` via `sentence_transformers.CrossEncoder`, 15 candidates, 512 tokens (default, chosen on generation quality); `BAAI/bge-reranker-base` in the fast demo profile `configs/fast.yaml` | sigmoid scores in [0,1] |
 | LLM | **Gemini primary → Groq (free tier) → Grok (xAI) fallbacks** (`google-genai`, `openai` SDK) | code in Appendix A; providers without a key are skipped |
 | UI | FastAPI + Uvicorn backend, static HTML/CSS/JS frontend (no build step); vendored `marked` + `DOMPurify` | spec in `UI_SPEC.md` |
 | Eval | own retrieval metrics; RAGAS for faithfulness/correctness; own citation & refusal metrics | |
@@ -128,7 +128,7 @@ rag-3gpp/
 ├── Makefile                   # shortcuts for the commands in §15
 ├── requirements.lock          # exact versions (pip freeze, Python 3.11)
 ├── PROGRESS.md                # build log, decisions, blocked items
-├── configs/                   # corpus variants for bonuses (RAG_CONFIG=configs/<name>.yaml)
+├── configs/                   # RAG_CONFIG=configs/<name>.yaml: corpus variants (bonuses), fast.yaml demo profile
 ├── data/
 │   ├── raw/                   # downloaded zips (git-ignored)
 │   ├── processed/             # chunks.jsonl, parse_report.md
@@ -220,16 +220,21 @@ retrieval:
   use_hybrid: true
   use_reranker: true
   use_routing: true
+  router_version: 2         # 1 = original rules, 2 = mixed architecture/NAS rules
+  routing_mode: "soft"      # hard = filter to routed spec(s) | soft = search both, boost routed spec
+  soft_routing_weight: 1.5  # RRF multiplier for the routed spec's chunks (soft mode)
+  bm25_weight: 0.5          # weight of the BM25 list in RRF (dense list = 1)
 gate:
-  reranker_threshold: 0.15  # calibrate on eval (§12)
-  dense_threshold: 0.45     # used when reranker disabled
+  reranker_threshold: 0.40  # calibrated on eval (§12) for bge-reranker-v2-m3 @512
+  dense_threshold: 0.55     # used when reranker disabled
 reranker:
-  model: "BAAI/bge-reranker-base"   # chosen by the CPU benchmark (bge-reranker-v2-m3 for multilingual)
+  model: "BAAI/bge-reranker-v2-m3"  # configs/fast.yaml: bge-reranker-base (fast demo profile)
   max_length: 512
 llm:
-  provider: "auto"          # auto (gemini→grok) | gemini | grok
+  provider: "auto"          # auto (gemini→groq→grok) | gemini | groq | grok
   temperature: 0
   max_tokens: 8192          # gemini-3.x "thinking" tokens count against this budget
+  prompt_version: 2         # system prompt rules (§9.1)
 seed: 42
 ```
 
@@ -425,6 +430,10 @@ Rule-based scoring with keyword/regex lists (case-insensitive); each hit adds we
 - Decision: if one spec's score ≥ 2× the other and ≥ 1 → that spec only; else both.
 - Explicit spec mention (`23.501`, `24.501`) overrides everything.
 - `use_routing=false` → always both specs (no filter).
+- `routing_mode: hard` applies the decision as a search filter. `routing_mode: soft` (default
+  since the follow-up round) searches both specs and multiplies the RRF score of chunks from
+  the routed spec by `soft_routing_weight`; a "both" decision means no boost. The per-spec
+  quota (§8.4) uses the decision in both modes.
 Unit tests with ≥ 12 labeled questions (the router test set is separate from the eval set).
 
 ### 8.2 Hybrid search (`hybrid.py`)
@@ -433,11 +442,12 @@ dense  = qdrant.search(embed_query(q), dense_top_n, specs)
 sparse = bm25.search(q, sparse_top_n, specs)            # only if use_hybrid
 fused  = rrf([dense, sparse], k=rrf_k)[:fused_top_n]    # if not use_hybrid: fused = dense[:fused_top_n]
 ```
-RRF: `score(d) = Σ_lists 1 / (k + rank_list(d))`, rank starting at 1. Keep per-chunk
+RRF: `score(d) = Σ_lists w_list / (k + rank_list(d))`, rank starting at 1; `w_dense = 1`,
+`w_bm25 = retrieval.bm25_weight` (default 0.5, chosen by retrieval MRR among 1.0/0.5/0.25). Keep per-chunk
 provenance: dense rank/score, bm25 rank/score, rrf score.
 
 ### 8.3 Reranker (`reranker.py`)
-- `CrossEncoder(model, max_length=1024, activation_fn=Sigmoid)` → score per (query, chunk text).
+- `CrossEncoder(model, max_length=reranker.max_length (512), activation_fn=Sigmoid)` → score per (query, chunk text).
 - Sort fused candidates by rerank score. If `use_reranker=false`, keep RRF order.
 - Batch size 16; cached model.
 
@@ -466,7 +476,10 @@ Context block format (one per chunk, ordered by final rank):
 </source>
 ```
 
-System prompt (use verbatim, keep in `prompts.py`):
+System prompt (use verbatim, keep in `prompts.py`). This is **prompt version 2**
+(`llm.prompt_version: 2`, recorded in every result file); version 1 had rule 4 as "If the
+sources do not contain the information needed to answer, reply with exactly this sentence and
+nothing else: …" and stays selectable for reproducing earlier runs:
 ```
 You are a 3GPP 5G standards assistant. You answer questions using ONLY the sources provided
 in the user message, which are excerpts from 3GPP TS 23.501 (Release 18) and TS 24.501
@@ -480,9 +493,11 @@ Rules:
 3. Cite every factual sentence with the label of the source it comes from, exactly as
    written in the source's label attribute, e.g. [TS 24.501 §5.5.1.2.4]. Several labels may
    follow one sentence. Never cite a section that is not among the provided labels.
-4. If the sources do not contain the information needed to answer, reply with exactly this
-   sentence and nothing else:
+4. Refuse only when none of the sources is relevant to the question. In that case reply
+   with exactly this sentence and nothing else:
    I could not find this information in the documents.
+   If at least one source covers part of the question, do not refuse: answer that part
+   (rule 2) and say which part the documents do not cover, without using that sentence.
 5. Keep names of messages, information elements, timers, cause values and network
    functions exactly as written in the sources (e.g. REGISTRATION REQUEST, T3510, 5GMM cause #9).
 6. Be precise and concise. Use short paragraphs or bullet lists for procedures (ordered
@@ -652,6 +667,7 @@ python scripts/sample_chunks.py                   # data/processed/chunk_samples
 python -m src.index.build_index --rebuild         # parse → chunk → embed → index
 python -m src.generation.llm --list               # model IDs available to your keys
 uvicorn app.server:app --host 127.0.0.1 --port 8000   # web UI → http://127.0.0.1:8000
+RAG_CONFIG=configs/fast.yaml uvicorn app.server:app --port 8000   # fast demo profile (bge-reranker-base)
 python -m eval.make_testset_review                # eval/testset_review.md
 python -m eval.run_retrieval_eval --all-ablations
 python -m eval.run_generation_eval --provider gemini --configs best,baseline,no_hybrid,no_reranker,no_routing
@@ -685,7 +701,10 @@ pytest -q && ruff check . && ruff format --check .
 13. **No AI attribution anywhere in git history.** Commit messages must not mention Claude,
     Claude Code, Anthropic or AI, and must not contain `Co-Authored-By:` trailers or
     "Generated with …" lines. Do not change `git config user.name` / `user.email`; commits use
-    the user's identity. The same applies to code comments, README, docs and slides.
+    the user's identity. The same applies to code comments, docs and slides. Single exception,
+    requested by the user: the README "Development process" section states that the project
+    was developed with an AI coding assistant and that CLAUDE.md, UI_SPEC.md and PROGRESS.md
+    are kept as process documentation.
 
 ---
 
@@ -814,7 +833,7 @@ class ProviderError(RuntimeError):
 
 def retry_after_seconds(text: str, headers=None) -> float | None:
     """Wait time from a `Retry-After` header or from messages such as
-    "Please try again in 8.93s", "try again in 1m2.5s", "Please retry in 59.7s"."""
+    "Please try again in 8.93s", "try again in 1m2.5s", "Please retry in 18h46m25.9s"."""
     if headers is not None:
         value = headers.get("retry-after")
         if value:
@@ -822,12 +841,13 @@ def retry_after_seconds(text: str, headers=None) -> float | None:
                 return float(value)
             except ValueError:
                 pass
-    m = re.search(r"(?:try|retry)(?: again)? in (?:(\d+)m)?([\d.]+)(ms|s)(?![a-z])", text)
+    m = re.search(r"(?:try|retry)(?: again)? in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)(ms|s)(?![a-z])",
+                  text)
     if not m:
         return None
-    minutes, value, unit = m.groups()
+    hours, minutes, value, unit = m.groups()
     secs = float(value) / 1000 if unit == "ms" else float(value)
-    return secs + 60 * int(minutes or 0)
+    return secs + 60 * int(minutes or 0) + 3600 * int(hours or 0)
 
 
 class LLMProvider(Protocol):

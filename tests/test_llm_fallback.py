@@ -167,6 +167,8 @@ def test_transient_without_retry_after_keeps_backoff(monkeypatch):
         ("Rate limit reached... try again in 1m2.5s", 62.5),
         ("Please retry in 59.755569523s.", 59.755569523),
         ("try again in 585ms", 0.585),
+        ("Please retry in 18h46m25.940755311s.", 18 * 3600 + 46 * 60 + 25.940755311),
+        ("Please try again in 43m2.496s.", 43 * 60 + 2.496),
         ("no hint here", None),
     ],
 )

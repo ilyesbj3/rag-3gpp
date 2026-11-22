@@ -2,7 +2,7 @@
 # On Windows without `make`, run the commands directly.
 PY ?= python
 
-.PHONY: install env corpus inspect chunks samples qdrant index models app review eval-retrieval eval-generation latency report test lint format check
+.PHONY: install env corpus inspect chunks samples qdrant index models app app-fast review eval-retrieval eval-generation latency report test lint format check
 
 install:
 	$(PY) -m pip install -r requirements.lock
@@ -34,6 +34,9 @@ models:
 
 app:
 	$(PY) -m uvicorn app.server:app --host 127.0.0.1 --port 8000
+
+app-fast:  # fast demo profile: bge-reranker-base (configs/fast.yaml)
+	RAG_CONFIG=configs/fast.yaml $(PY) -m uvicorn app.server:app --host 127.0.0.1 --port 8000
 
 review:
 	$(PY) -m eval.make_testset_review

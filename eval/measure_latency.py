@@ -14,7 +14,7 @@ import csv
 import statistics
 import sys
 
-from eval.configs import describe, overrides_for
+from eval.configs import describe, overrides_for, parse_sets
 from eval.metrics import RESULTS_DIR, load_testset
 from src.config import load_settings
 from src.pipeline import RAGPipeline
@@ -26,9 +26,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--configs", default="best,no_reranker")
     ap.add_argument("--provider", default="gemini", choices=["gemini", "groq", "grok"])
+    ap.add_argument("--tag", default="", help="suffix for the output file")
+    ap.add_argument("--set", action="append", metavar="KEY=VALUE", help="settings override")
     args = ap.parse_args(argv)
 
-    settings = load_settings()
+    settings = load_settings(parse_sets(args.set) or None)
     items = [it for it in load_testset() if it["type"] != "out_of_corpus"][: args.n]
     base = RAGPipeline(settings)
     base.warmup()  # the app loads the models at startup; do not time the first load
@@ -51,13 +53,17 @@ def main(argv: list[str] | None = None) -> int:
             "description": describe(name),
             "n": len(totals),
             "model": ans.llm_model,
+            "reranker_model": settings.reranker.model,
+            "reranker_max_length": settings.reranker.max_length,
+            "fused_top_n": settings.retrieval.fused_top_n,
             "total_mean_s": round(statistics.fmean(totals), 1),
             "total_max_s": round(max(totals), 1),
             **{f"{k}_mean_s": round(statistics.fmean(v), 2) for k, v in parts.items()},
         }
         rows.append(rec)
         print(rec)
-    with (RESULTS_DIR / "latency.csv").open("w", newline="", encoding="utf-8") as fh:
+    out = RESULTS_DIR / f"latency{'_' + args.tag if args.tag else ''}.csv"
+    with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)

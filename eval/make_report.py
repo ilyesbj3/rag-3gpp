@@ -248,7 +248,7 @@ def generation_section(
     rows = read_csv(RESULTS_DIR / f"generation_{provider}{tag}.csv")
     if not rows:
         return [f"_Generation evaluation ({provider}) not run yet._"], []
-    meta_path = RESULTS_DIR / f"generation_{provider}_meta.json"
+    meta_path = RESULTS_DIR / f"generation_{provider}{tag}_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     out = [
         f"### Generation{(' — ' + label) if label else ''} — provider `{provider}` "
@@ -331,13 +331,14 @@ def generation_section(
 
 
 def latency_section() -> list[str]:
-    rows = read_csv(RESULTS_DIR / "latency.csv")
+    rows = read_csv(RESULTS_DIR / "latency.csv") + read_csv(RESULTS_DIR / "latency_fast.csv")
     if not rows:
         return []
     out = ["### Real end-to-end latency (CPU laptop, no reranker cache)", ""]
     out += md_table(
         [
             "Config",
+            "Reranker",
             "n",
             "LLM",
             "total mean (s)",
@@ -349,6 +350,7 @@ def latency_section() -> list[str]:
         [
             [
                 r["config"],
+                r.get("reranker_model", "").removeprefix("BAAI/") or "–",
                 r["n"],
                 r["model"],
                 r["total_mean_s"],
@@ -371,8 +373,8 @@ def latency_section() -> list[str]:
     return out
 
 
-def load_gen(config: str, provider: str) -> dict[str, dict]:
-    p = RAW_DIR / f"gen_{config}_{provider}.jsonl"
+def load_gen(config: str, provider: str, tag: str = "") -> dict[str, dict]:
+    p = RAW_DIR / f"gen_{config}_{provider}{tag}.jsonl"
     if not p.exists():
         return {}
     return {
@@ -718,8 +720,12 @@ def router_before_after_section() -> list[str]:
         if (RESULTS_DIR / "retrieval_ablation_router_v1_same_reranker.csv").exists()
         else "router_v1"
     )
+    # v2 with exactly the settings of the v1 reference run (base reranker, hard, w 1.0)
+    ref = "_grid_base_hard_w1.0"
+    if not (RESULTS_DIR / f"router_accuracy{ref}.csv").exists():
+        ref = ""
     old = {r["config"]: r for r in read_csv(RESULTS_DIR / f"router_accuracy_{tag}.csv")}
-    new = {r["config"]: r for r in read_csv(RESULTS_DIR / "router_accuracy.csv")}
+    new = {r["config"]: r for r in read_csv(RESULTS_DIR / f"router_accuracy{ref}.csv")}
     if "best" not in old or "best" not in new:
         return []
     ret_old = {
@@ -727,7 +733,7 @@ def router_before_after_section() -> list[str]:
         for r in read_csv(RESULTS_DIR / f"retrieval_ablation_{tag}.csv")
     }
     ret_new = {
-        (r["config"], r["group"]): r for r in read_csv(RESULTS_DIR / "retrieval_ablation.csv")
+        (r["config"], r["group"]): r for r in read_csv(RESULTS_DIR / f"retrieval_ablation{ref}.csv")
     }
     out = [
         "## Router: before / after",
@@ -737,7 +743,8 @@ def router_before_after_section() -> list[str]:
         "function does). It was tuned **only** on `tests/test_router.py` (12 new cross-spec "
         "questions written independently of the test set, plus single-spec guards); the "
         "evaluation set was not used for tuning. Both columns use the same retrieval settings "
-        "(current reranker defaults); only `retrieval.router_version` differs.",
+        "(bge-reranker-base, 15 candidates, 512 tokens, hard routing, BM25 weight 1.0); only "
+        "`retrieval.router_version` differs.",
         "",
     ]
     body = []
@@ -763,6 +770,219 @@ def router_before_after_section() -> list[str]:
             if o and n:
                 body.append([f"`{cfg}`", f"{g} {m}", f(o.get(m)), f(n.get(m))])
     out += md_table(["Config", "Metric", "v1", "v2"], body) + [""]
+    return out
+
+
+RERANKER_RUNS = (
+    ("a", "bge-reranker-v2-m3", "", "latency.csv"),
+    ("b", "bge-reranker-base (configs/fast.yaml)", "_fast", "latency_fast.csv"),
+)
+CHOICE_MARGIN = 0.03  # base becomes the default if within this correctness of v2-m3
+
+
+def reranker_choice_section() -> list[str]:
+    """Side by side: best config with v2-m3 vs base (both 15 candidates, 512 tokens)."""
+    runs = []
+    for key, name, tag, lat_file in RERANKER_RUNS:
+        row = {r["config"]: r for r in read_csv(RESULTS_DIR / f"generation_gemini{tag}.csv")}
+        if "best" not in row:
+            return []
+        gen = load_gen("best", "gemini", tag)
+        gate = llm = 0
+        for r in gen.values():
+            a = r.get("answer") or {}
+            if r["type"] != "out_of_corpus" and a.get("refused"):
+                if a.get("llm_provider"):
+                    llm += 1
+                else:
+                    gate += 1
+        lat = {r["config"]: r for r in read_csv(RESULTS_DIR / lat_file)}.get("best", {})
+        runs.append((key, name, row["best"], gate, llm, lat))
+    body = []
+    for key, name, r, gate, llm, lat in runs:
+        body.append(
+            [
+                f"({key}) {name}",
+                f"{r['n']}/{r['n_expected']}",
+                f(r["faithfulness"], 2),
+                f(r["correctness"], 2),
+                f(r["citation_accuracy"], 2),
+                f(r["refusal_f1"], 2),
+                f"{gate} / {llm}",
+                lat.get("total_mean_s", "–"),
+                lat.get("rerank_mean_s", "–"),
+            ]
+        )
+    out = [
+        "## Reranker choice: v2-m3 vs base (generation)",
+        "",
+        "Config `best` with the final retrieval defaults (soft routing, BM25 weight 0.5, "
+        "15 candidates, 512 tokens, prompt v2), Gemini for answers and judge; only the "
+        "reranker and its calibrated gate differ (0.40 for v2-m3, 0.15 for base). Latency is "
+        "measured end to end without any reranker cache (`eval.measure_latency`, 5 questions, "
+        "models warmed up).",
+        "",
+    ]
+    out += md_table(
+        [
+            "Run",
+            "n",
+            "Faithfulness",
+            "Correctness",
+            "Citation acc.",
+            "Refusal F1",
+            "False refusals (gate / LLM)",
+            "Latency mean (s)",
+            "of which rerank (s)",
+        ],
+        body,
+    )
+    ca, cb = float(runs[0][2]["correctness"] or 0), float(runs[1][2]["correctness"] or 0)
+    if ca - cb <= CHOICE_MARGIN:
+        verdict = (
+            f"(b) is within {CHOICE_MARGIN} correctness of (a) ({cb:.2f} vs {ca:.2f}), so the "
+            "faster bge-reranker-base is the default; v2-m3 stays available for French questions."
+        )
+    else:
+        verdict = (
+            f"(b) is {ca - cb:.2f} correctness below (a) ({cb:.2f} vs {ca:.2f}), more than the "
+            f"{CHOICE_MARGIN} margin, so **bge-reranker-v2-m3 (15 / 512) is the default**; "
+            "bge-reranker-base is the documented fast demo profile (`configs/fast.yaml`)."
+        )
+    return out + ["", "Rule: v2-m3 unless (b) is within 0.03 correctness of (a). " + verdict, ""]
+
+
+GRID_RERANKERS = (("v2m3", "bge-reranker-v2-m3"), ("base", "bge-reranker-base"))
+GRID_MODES = ("hard", "soft")
+GRID_WEIGHTS = ("1.0", "0.5", "0.25")
+DEFAULTS_NOTE: list[str] = [
+    "### Final retrieval defaults and why",
+    "",
+    "Selection rule (fixed before looking at generation): highest retrieval MRR of `best` "
+    "with the default reranker (bge-reranker-v2-m3), ties broken in favour of the simpler or "
+    "the required component.",
+    "",
+    "- **Routing mode: soft.** MRR 0.807 vs 0.770 for hard routing at the same BM25 weight. "
+    "The gain comes from cross-spec questions the router sends to one spec: soft routing "
+    "still lets chunks of the other spec into the 15 candidates (cross MRR 0.589 vs 0.458, "
+    "cross R@5 0.571 vs 0.429). Simple questions are unchanged (simple-23 MRR 0.816 vs "
+    "0.808, simple-24 0.950 both), because the 1.5× boost keeps the routed spec on top.",
+    "- **BM25 weight: 0.5.** MRR 0.807 vs 0.750 (1.0) and 0.801 (0.25). At full weight BM25 "
+    "helps cross questions a little (cross MRR 0.607, R@5 0.714) but costs the simple ones "
+    "more (simple-23 MRR 0.716, simple-24 0.883); 0.5 keeps the simple questions intact; "
+    "0.25 is slightly lower on 24.501 (0.933).",
+    "- **Hybrid: on.** With these settings `no_hybrid` ties exactly (MRR 0.807, cross MRR "
+    "0.587 vs 0.589). The tie is broken in favour of hybrid search: it is a required "
+    "component of the assignment and BM25 is the component that matches exact identifiers "
+    "(timers, cause numbers, section numbers) when the dense model misses them.",
+    "",
+    "None of these differences is statistically established on 27 questions (table above), "
+    "so the choice is a defensible default, not a proven optimum. With bge-reranker-base the "
+    "ranking differs (`no_hybrid` is best at 0.831), which is one more reason to read the "
+    "numbers as configuration-specific.",
+    "",
+]  # justification of the final retrieval defaults
+
+
+def _grid(rr: str, mode: str, w: str) -> dict[tuple[str, str], dict]:
+    path = RESULTS_DIR / f"retrieval_ablation_grid_{rr}_{mode}_w{w}.csv"
+    return {(r["config"], r["group"]): r for r in read_csv(path)} if path.exists() else {}
+
+
+def routing_bm25_section() -> list[str]:
+    """Hard vs soft routing and the BM25 weight in RRF (retrieval only, 15 candidates, 512)."""
+    if not _grid("v2m3", "hard", "1.0"):
+        return []
+    out = [
+        "## Soft routing and BM25 weight (retrieval only)",
+        "",
+        "`retrieval.routing_mode: hard` filters dense and BM25 search to the routed spec(s); "
+        "`soft` searches both specs and multiplies the RRF score of the routed spec's chunks "
+        "by `retrieval.soft_routing_weight` (1.5). When the router picks both specs the two "
+        "modes are identical. `retrieval.bm25_weight` weights the BM25 list in RRF (the dense "
+        "list keeps weight 1). With the reranker on, both settings only change *which* 15 "
+        "candidates reach the cross-encoder; the final order is the reranker's. All runs: "
+        "15 candidates, 512 tokens, router v2. `no_hybrid` does not use BM25, so its rows "
+        "depend on the routing mode only.",
+        "",
+    ]
+    body = []
+    for rr, rr_name in GRID_RERANKERS:
+        for mode in GRID_MODES:
+            for w in GRID_WEIGHTS:
+                g = _grid(rr, mode, w)
+                for cfg in ("best", "no_hybrid"):
+                    if cfg == "no_hybrid" and w != "1.0":
+                        continue
+                    a, c = g.get((cfg, "all")), g.get((cfg, "cross"))
+                    if not a:
+                        continue
+                    body.append(
+                        [
+                            rr_name,
+                            mode,
+                            "–" if cfg == "no_hybrid" else w,
+                            f"`{cfg}`",
+                            f(a.get("recall@1")),
+                            f(a.get("recall@5")),
+                            f(a.get("mrr")),
+                            f(c.get("recall@5")) if c else "–",
+                            f(c.get("both_recall@5")) if c else "–",
+                            f(c.get("mrr")) if c else "–",
+                        ]
+                    )
+    out += md_table(
+        [
+            "Reranker",
+            "Routing",
+            "BM25 w",
+            "Config",
+            "R@1",
+            "R@5",
+            "MRR",
+            "cross R@5",
+            "cross both-spec R@5",
+            "cross MRR",
+        ],
+        body,
+    )
+    out += [""]
+    # paired bootstrap on MRR of `best`: (label, (rr, mode, w) of A, (rr, mode, w) of B)
+    pairs = [
+        ("soft − hard, BM25 w 0.5", ("v2m3", "soft", "0.5"), ("v2m3", "hard", "0.5")),
+        ("BM25 w 0.5 − 1.0, soft", ("v2m3", "soft", "0.5"), ("v2m3", "soft", "1.0")),
+        ("chosen − previous settings", ("v2m3", "soft", "0.5"), ("v2m3", "hard", "1.0")),
+        ("soft − hard, BM25 w 0.5", ("base", "soft", "0.5"), ("base", "hard", "0.5")),
+    ]
+    names = dict(GRID_RERANKERS)
+    stats = []
+    for label, ka, kb in pairs:
+        ra = {r["id"]: r for r in _raw_rows("retrieval_best_grid_{}_{}_w{}.json".format(*ka))}
+        rb = {r["id"]: r for r in _raw_rows("retrieval_best_grid_{}_{}_w{}.json".format(*kb))}
+        ids = sorted(i for i in ra if ra[i]["type"] != "out_of_corpus" and i in rb)
+        for grp, sel in (("all", ids), ("cross", [i for i in ids if ra[i]["type"] == "cross"])):
+            if not sel:
+                continue
+            d, lo, hi = paired_bootstrap([ra[i]["mrr"] for i in sel], [rb[i]["mrr"] for i in sel])
+            verdict = "robust" if lo > 0 or hi < 0 else "within noise"
+            stats.append(
+                [
+                    names[ka[0]],
+                    label,
+                    grp,
+                    str(len(sel)),
+                    f"{d:+.3f}",
+                    f"[{lo:+.3f}, {hi:+.3f}]",
+                    verdict,
+                ]
+            )
+    if stats:
+        out += ["Paired bootstrap on the MRR of `best` (10,000 resamples, seed 42):", ""]
+        out += md_table(
+            ["Reranker", "Comparison", "Questions", "n", "Δ MRR", "95% CI", "Verdict"], stats
+        )
+        out += [""]
+    out += DEFAULTS_NOTE
     return out
 
 
@@ -812,36 +1032,37 @@ def main() -> int:
         L += ["![retrieval ablation](figures/retrieval_ablation.png)", ""]
     L += router_section(prelim) + [""] + gate_section(prelim) + ["## Generation", ""]
     gsum_all = []
-    for provider in ("gemini", "grok"):
-        if (RESULTS_DIR / f"generation_{provider}.csv").exists():
-            gtab, gsum = generation_section(provider, prelim, label="current defaults")
-            gsum_all += [f"[{provider}] {s}" for s in gsum]
-            L += gtab + ["", f"![generation {provider}](figures/generation_{provider}.png)", ""]
-            L += [
-                "Current defaults: router v2, bge-reranker-base, 15 candidates, 512 tokens, gate "
-                "0.10. `no_reranker` and `no_routing` are pending (Gemini free-tier daily quota); "
-                "the complete 5-configuration run with the previous defaults is below. Compared "
-                "with that run, `best` correctness went 0.88 → 0.80: five questions were refused "
-                "by the LLM because a key chunk was no longer among the 6 sources (e.g. s23-01: "
-                "§6.2.1 AMF; s23-07: the 5QI-1 row of Table 5.7.4-1), two improved. The paired "
-                "change is −0.08, 95% CI [−0.23, +0.05] (not established on 30 questions), but "
-                "the mechanism is concrete: the faster reranker trades some answer quality for "
-                "6× lower latency.",
-                "",
-            ]
-    if (RESULTS_DIR / "generation_gemini_router_v1.csv").exists():
-        gtab, _ = generation_section(
-            "gemini",
-            prelim,
-            tag="_router_v1",
-            label="previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens)",
-        )
-        L += gtab + [""]
+    if (RESULTS_DIR / "generation_gemini.csv").exists():
+        gtab, gsum = generation_section("gemini", prelim, label="final defaults")
+        gsum_all += [f"[gemini] {x}" for x in gsum]
+        L += gtab + ["", "![generation gemini](figures/generation_gemini.png)", ""]
+        L += [
+            "Final defaults: bge-reranker-v2-m3, 15 candidates, 512 tokens, gate 0.40, soft "
+            "routing (weight 1.5), BM25 weight 0.5, router v2, prompt v2. Configurations not "
+            "listed are pending the Gemini free-tier daily quota.",
+            "",
+        ]
+    for tag, label in (
+        (
+            "_prev",
+            "previous round (bge-reranker-base, 15 candidates, 512 tokens, gate 0.10, hard "
+            "routing, BM25 weight 1.0, prompt v1)",
+        ),
+        (
+            "_router_v1",
+            "first round (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens, prompt v1)",
+        ),
+    ):
+        if (RESULTS_DIR / f"generation_gemini{tag}.csv").exists():
+            gtab, _ = generation_section("gemini", prelim, tag=tag, label=label)
+            L += gtab + [""]
     if not gsum_all:
         L += ["_Generation evaluation not run yet._", ""]
     L += latency_section()
+    L += reranker_choice_section()
     L += cross_judge_section() + false_refusal_section("gemini")
-    L += reranker_bench_section() + router_before_after_section() + statistics_section()
+    L += reranker_bench_section() + router_before_after_section() + routing_bm25_section()
+    L += statistics_section()
     L += qualitative_section("gemini") + failure_section("gemini")
     (RESULTS_DIR / "REPORT.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("Wrote", RESULTS_DIR / "REPORT.md")

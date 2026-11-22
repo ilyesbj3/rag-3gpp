@@ -291,6 +291,28 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 - Bonus sections 1–4 now compare against reference rows produced with the same (previous)
   settings.
 
+## Second follow-up round (2026-11-22) — status
+- **Test set**: the message said the set was validated, but `eval/testset.json` is unchanged
+  since 2026-11-21 and all 30 items are still `verified: false` (no other copy found). Every
+  number stays labelled preliminary; nothing was marked verified by me.
+- Groq judge pass of the previous round stopped (it was judging an answer set the new
+  defaults make obsolete); its cached judgements are kept in `raw/crossjudge/`.
+- Code: `retrieval.routing_mode` hard|soft (+ `soft_routing_weight` 1.5),
+  `retrieval.bm25_weight` (weighted RRF), `llm.prompt_version` (v2 = rule 4 refuses only when
+  no source is relevant), recorded in every result file (`config_snapshot`, `run_metadata`);
+  `--set key=value` in the eval CLIs; `--round` for cross-judge; `data_variant` so a settings
+  profile (`configs/fast.yaml`) reuses the main index; stale-row-free generation summaries;
+  `retry_after_seconds` now parses hours (`retry in 18h46m25s` was read as 46 min).
+- Retrieval grid (v2-m3 and base, 15 / 512, hard/soft × BM25 w 1.0/0.5/0.25): chosen
+  defaults by MRR = soft routing, BM25 w 0.5, hybrid on (ties no_hybrid at 0.807).
+  All differences within bootstrap noise. Justification in REPORT.md.
+- `--all-ablations` re-run with the new defaults: best MRR 0.807, R@5 0.889; gate
+  recalibrated for v2-m3 @512: reranker 0.40 (out-of-corpus max 0.13, in-corpus min 0.66),
+  dense 0.55 (thin margin). Base reranker gate for the fast profile: 0.15.
+- Gemini: the daily quota was already exhausted after 1 answer (resets ≈ 09:00 local,
+  2026-11-23). Generation (a) v2-m3, (b) base, (c) ablations resume then.
+- Groq answers for the final best config running in the background (daily token cap).
+
 ## Open issues
 - Cross-spec questions are the main failure mode (routing + retrieval), see REPORT.md.
 - Rel-17 generation bonus partial (quota) — resumable.
@@ -306,7 +328,5 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
   judge pass and the last Groq answers (x-06, x-07) trickle in; resume with
   `python -m eval.run_cross_judge --judge groq` and the Groq generation command in the README.
 - **xAI Grok**: needs a real `xai-` key in `XAI_API_KEY` (the earlier key was a Groq key).
-- **Answer quality vs speed**: choose between `bge-reranker-base` (default, 7.6 s/answer,
-  best correctness 0.80) and `bge-reranker-v2-m3` (≈ 48 s/answer on this CPU, 0.88, and
-  multilingual) — `reranker.model` / `retrieval.fused_top_n` / `reranker.max_length` /
-  `gate.reranker_threshold` in `config.yaml`.
+- **Test set file**: please check that your validated `eval/testset.json` was saved in this
+  repository (the current file has no `verified: true` item).

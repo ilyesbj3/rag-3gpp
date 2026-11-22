@@ -5,10 +5,10 @@
 ## Setup
 
 - Corpus: TS 23.501 V18.12.0 (Rel-18), TS 24.501 V18.14.0 (Rel-18) — see `data/VERSIONS.md`
-- Embeddings: `BAAI/bge-m3` · reranker: `BAAI/bge-reranker-base` · vector DB: Qdrant (cosine) · BM25: bm25s + telecom tokenizer · RRF k = 60
+- Embeddings: `BAAI/bge-m3` · reranker: `BAAI/bge-reranker-v2-m3` · vector DB: Qdrant (cosine) · BM25: bm25s + telecom tokenizer · RRF k = 60
 - Retrieval: dense top 50, BM25 top 50, fused top 15, final top-k 6, ≥2 chunks per spec for cross routes
 - Test set: 30 questions (20 simple, 7 cross, 3 out-of-corpus); retrieval metrics on the 27 in-corpus questions, top-10 ranking after fusion/rerank; a hit is the gold section or one of its sub-clauses, same spec
-- Retrieval run: 2026-11-22 03:41 UTC, commit `c1d4a56`
+- Retrieval run: 2026-11-22 13:02 UTC, commit `c49c352`
 
 Configurations: `best` = hybrid on, reranker on, routing on; `no_hybrid` = hybrid off, reranker on, routing on; `no_reranker` = hybrid on, reranker off, routing on; `no_routing` = hybrid on, reranker on, routing off; `hybrid_only` = hybrid on, reranker off, routing off; `reranker_only` = hybrid off, reranker on, routing off; `routing_only` = hybrid off, reranker off, routing on; `baseline` = hybrid off, reranker off, routing off
 
@@ -18,12 +18,12 @@ Configurations: `best` = hybrid on, reranker on, routing on; `no_hybrid` = hybri
 
 | Config | Hybrid | Reranker | Routing | R@1 | R@3 | R@5 | R@10 | MRR |
 |---|---|---|---|---|---|---|---|---|
-| best | ✓ | ✓ | ✓ | 0.704 | 0.778 | 0.815 | 0.852 | 0.747 |
-| no_hybrid | ✗ | ✓ | ✓ | 0.778 | 0.852 | 0.852 | 0.926 | 0.817 |
-| no_reranker | ✓ | ✗ | ✓ | 0.481 | 0.704 | 0.815 | 0.889 | 0.622 |
-| no_routing | ✓ | ✓ | ✗ | 0.593 | 0.741 | 0.852 | 0.889 | 0.691 |
-| hybrid_only | ✓ | ✗ | ✗ | 0.407 | 0.667 | 0.778 | 0.889 | 0.574 |
-| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.852 | 0.889 | 0.926 | 0.785 |
+| best | ✓ | ✓ | ✓ | 0.741 | 0.889 | 0.889 | 0.926 | 0.807 |
+| no_hybrid | ✗ | ✓ | ✓ | 0.741 | 0.889 | 0.889 | 0.926 | 0.807 |
+| no_reranker | ✓ | ✗ | ✓ | 0.481 | 0.815 | 0.889 | 0.889 | 0.648 |
+| no_routing | ✓ | ✓ | ✗ | 0.667 | 0.889 | 0.889 | 0.926 | 0.770 |
+| hybrid_only | ✓ | ✗ | ✗ | 0.481 | 0.778 | 0.852 | 0.889 | 0.627 |
+| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.889 | 0.889 | 0.926 | 0.788 |
 | routing_only | ✗ | ✗ | ✓ | 0.630 | 0.852 | 0.889 | 0.926 | 0.730 |
 | baseline | ✗ | ✗ | ✗ | 0.556 | 0.815 | 0.889 | 0.926 | 0.677 |
 
@@ -31,13 +31,13 @@ Configurations: `best` = hybrid on, reranker on, routing on; `no_hybrid` = hybri
 
 | Config | simple-23 R@5 | simple-24 R@5 | cross R@5 | simple-23 MRR | simple-24 MRR | cross MRR | cross both-spec R@5 | cross both-spec R@10 |
 |---|---|---|---|---|---|---|---|---|
-| best | 0.900 | 1.000 | 0.429 | 0.900 | 0.803 | 0.446 | 0.000 | 0.000 |
-| no_hybrid | 1.000 | 1.000 | 0.429 | 1.000 | 0.883 | 0.462 | 0.000 | 0.000 |
-| no_reranker | 0.800 | 0.900 | 0.714 | 0.717 | 0.623 | 0.486 | 0.000 | 0.000 |
-| no_routing | 0.800 | 1.000 | 0.714 | 0.750 | 0.803 | 0.446 | 0.143 | 0.143 |
-| hybrid_only | 0.800 | 0.900 | 0.571 | 0.625 | 0.625 | 0.427 | 0.143 | 0.143 |
-| reranker_only | 1.000 | 1.000 | 0.571 | 0.950 | 0.883 | 0.407 | 0.143 | 0.143 |
-| routing_only | 0.900 | 1.000 | 0.714 | 0.796 | 0.792 | 0.548 | 0.000 | 0.000 |
+| best | 1.000 | 1.000 | 0.571 | 0.817 | 0.950 | 0.589 | 0.000 | 0.000 |
+| no_hybrid | 1.000 | 1.000 | 0.571 | 0.817 | 0.950 | 0.587 | 0.000 | 0.000 |
+| no_reranker | 0.900 | 1.000 | 0.714 | 0.700 | 0.692 | 0.512 | 0.000 | 0.143 |
+| no_routing | 0.900 | 1.000 | 0.714 | 0.717 | 0.950 | 0.589 | 0.143 | 0.143 |
+| hybrid_only | 0.800 | 1.000 | 0.714 | 0.625 | 0.692 | 0.538 | 0.143 | 0.143 |
+| reranker_only | 1.000 | 1.000 | 0.571 | 0.817 | 0.950 | 0.516 | 0.143 | 0.143 |
+| routing_only | 0.900 | 1.000 | 0.714 | 0.796 | 0.792 | 0.548 | 0.000 | 0.143 |
 | baseline | 0.900 | 1.000 | 0.714 | 0.679 | 0.792 | 0.512 | 0.143 | 0.286 |
 
 ![retrieval ablation](figures/retrieval_ablation.png)
@@ -50,23 +50,23 @@ Configurations: `best` = hybrid on, reranker on, routing on; `no_hybrid` = hybri
 
 ### Score-gate calibration — *preliminary — gold set pending human validation*
 
-Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen: reranker_threshold = **0.1**, dense_threshold = **0.25** (recorded in `config.yaml`).
+Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen: reranker_threshold = **0.4**, dense_threshold = **0.55** (recorded in `config.yaml`).
 
 | threshold | refusal TPR (out-of-corpus) | false-refusal rate |
 |---|---|---|
 | 0.0 | 0.000 | 0.000 |
-| 0.05 | 0.667 | 0.000 |
+| 0.05 | 0.333 | 0.000 |
 | 0.1 | 0.667 | 0.000 |
-| 0.15 | 0.667 | 0.037 |
-| 0.2 | 0.667 | 0.037 |
-| 0.25 | 0.667 | 0.037 |
-| 0.3 | 1.000 | 0.074 |
-| 0.35 | 1.000 | 0.074 |
-| 0.4 | 1.000 | 0.074 |
-| 0.45 | 1.000 | 0.074 |
-| 0.5 | 1.000 | 0.074 |
-| 0.55 | 1.000 | 0.074 |
-| 0.6 | 1.000 | 0.074 |
+| 0.15 | 1.000 | 0.000 |
+| 0.2 | 1.000 | 0.000 |
+| 0.25 | 1.000 | 0.000 |
+| 0.3 | 1.000 | 0.000 |
+| 0.35 | 1.000 | 0.000 |
+| 0.4 | 1.000 | 0.000 |
+| 0.45 | 1.000 | 0.000 |
+| 0.5 | 1.000 | 0.000 |
+| 0.55 | 1.000 | 0.000 |
+| 0.6 | 1.000 | 0.000 |
 
 ![gate max_rerank](figures/gate_max_rerank.png)
 
@@ -83,14 +83,14 @@ Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen
 | 0.4 | 0.000 | 0.000 |
 | 0.45 | 0.000 | 0.000 |
 | 0.5 | 0.000 | 0.000 |
-| 0.55 | 0.333 | 0.037 |
-| 0.6 | 1.000 | 0.148 |
+| 0.55 | 0.333 | 0.000 |
+| 0.6 | 1.000 | 0.111 |
 
 ![gate max_dense](figures/gate_max_dense.png)
 
 ## Generation
 
-### Generation — current defaults — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
+### Generation — previous round (bge-reranker-base, 15 candidates, 512 tokens, gate 0.10, hard routing, BM25 weight 1.0, prompt v1) — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
 
 > Run stopped early (quota): judge no_hybrid/o-02: All LLM providers failed:. Rows with n < n_expected are partial; re-run the same command to resume.
 
@@ -102,13 +102,7 @@ Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen
 
 Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
 
-![generation gemini](figures/generation_gemini.png)
-
-Current defaults: router v2, bge-reranker-base, 15 candidates, 512 tokens, gate 0.10. `no_reranker` and `no_routing` are pending (Gemini free-tier daily quota); the complete 5-configuration run with the previous defaults is below. Compared with that run, `best` correctness went 0.88 → 0.80: five questions were refused by the LLM because a key chunk was no longer among the 6 sources (e.g. s23-01: §6.2.1 AMF; s23-07: the 5QI-1 row of Table 5.7.4-1), two improved. The paired change is −0.08, 95% CI [−0.23, +0.05] (not established on 30 questions), but the mechanism is concrete: the faster reranker trades some answer quality for 6× lower latency.
-
-### Generation — previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens) — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
-
-> Run stopped early (quota): judge no_hybrid/o-02: All LLM providers failed:. Rows with n < n_expected are partial; re-run the same command to resume.
+### Generation — first round (router v1, bge-reranker-v2-m3, 30 candidates, 1024 tokens, prompt v1) — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
 
 | Config | n | Faithfulness | Correctness | Citation acc. | Citation acc. (loose) | Gold cited | Not grounded | Refusal P | Refusal R | Refusal F1 | False refusals | Latency mean (s) | p95 (s) | Fallback |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -120,12 +114,14 @@ Current defaults: router v2, bge-reranker-base, 15 candidates, 512 tokens, gate 
 
 Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
 
+_Generation evaluation not run yet._
+
 ### Real end-to-end latency (CPU laptop, no reranker cache)
 
-| Config | n | LLM | total mean (s) | total max (s) | dense (s) | rerank (s) | LLM (s) |
-|---|---|---|---|---|---|---|---|
-| best | 5 | gemini-3.1-flash-lite | 7.6 | 8.5 | 0.15 | 4.14 | 3.28 |
-| no_reranker | 5 | gemini-3.1-flash-lite | 3.0 | 4.2 | 0.15 | 0.0 | 2.83 |
+| Config | Reranker | n | LLM | total mean (s) | total max (s) | dense (s) | rerank (s) | LLM (s) |
+|---|---|---|---|---|---|---|---|---|
+| best | – | 5 | gemini-3.1-flash-lite | 7.6 | 8.5 | 0.15 | 4.14 | 3.28 |
+| no_reranker | – | 5 | gemini-3.1-flash-lite | 3.0 | 4.2 | 0.15 | 0.0 | 2.83 |
 
 The latency columns of the generation table above reuse cached reranker scores (`eval/results/raw/rerank_cache.json`) and therefore exclude the cross-encoder compute; this table (`python -m eval.measure_latency`) shows what an app user waits for on CPU.
 
@@ -152,31 +148,9 @@ Metrics that need no judge (same frozen answers):
 | Answers | Citation acc. | Gold cited | Refusal P | Refusal R | Refusal F1 | False refusals |
 |---|---|---|---|---|---|---|
 | gemini (gemini-3.5-flash-lite) | 0.98 | 0.81 | 0.60 | 1.00 | 0.75 | 2 |
-| groq (openai/gpt-oss-120b) | 0.98 | 0.67 | 0.00 | 0.00 | 0.00 | 1 |
+| groq (openai/gpt-oss-120b) | 0.98 | 0.67 | 0.75 | 1.00 | 0.86 | 1 |
 
 **Self-preference.** faithfulness: on average a judge scores its own model's answers -0.03 higher than the other judge does (Gemini judge on Gemini answers +0.00, Groq judge on Groq answers -0.06); correctness: on average a judge scores its own model's answers +0.00 higher than the other judge does (Gemini judge on Gemini answers +0.06, Groq judge on Groq answers -0.06). A positive value is a self-preference bias of that size; with 30 questions, a few hundredths is one or two answers, so only a gap that both judges agree on (same ranking of the two answer sets) should be trusted.
-
-## False refusals: gate or LLM?
-
-15 in-corpus questions were refused across the reported generation configurations (current defaults): **0 by the score gate**, **15 by the LLM** after it saw the sources. A gate refusal means retrieval found nothing above the threshold; an LLM refusal means the model judged the retrieved sources insufficient (typically one half of a cross-spec question was missing).
-
-| Config | Question | Type | Refused by | Gate score |
-|---|---|---|---|---|
-| `best` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.968 |
-| `best` | `s23-07` | simple | LLM (gemini-3.5-flash-lite) | 0.991 |
-| `best` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.999 |
-| `best` | `x-02` | cross | LLM (gemini-3.5-flash-lite) | 0.998 |
-| `best` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.992 |
-| `best` | `x-04` | cross | LLM (gemini-3.5-flash-lite) | 0.960 |
-| `no_hybrid` | `s23-07` | simple | LLM (gemini-3.5-flash-lite) | 0.991 |
-| `no_hybrid` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.992 |
-| `no_hybrid` | `x-04` | cross | LLM (gemini-3.5-flash-lite) | 0.960 |
-| `no_hybrid` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.995 |
-| `baseline` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.664 |
-| `baseline` | `x-01` | cross | LLM (gemini-3.5-flash-lite) | 0.766 |
-| `baseline` | `x-02` | cross | LLM (gemini-3.5-flash-lite) | 0.741 |
-| `baseline` | `x-03` | cross | LLM (gemini-3.5-flash-lite) | 0.748 |
-| `baseline` | `x-05` | cross | LLM (gemini-3.5-flash-lite) | 0.730 |
 
 ## Reranker speed / quality benchmark (CPU)
 
@@ -198,7 +172,7 @@ MRR / recall of the `best` configuration on the in-corpus questions for each num
 
 ## Router: before / after
 
-Router v2 adds three general rules (architecture AND NAS signals → both specs; "procedure … messages" phrasing → both specs; more verbs that ask what a network function does). It was tuned **only** on `tests/test_router.py` (12 new cross-spec questions written independently of the test set, plus single-spec guards); the evaluation set was not used for tuning. Both columns use the same retrieval settings (current reranker defaults); only `retrieval.router_version` differs.
+Router v2 adds three general rules (architecture AND NAS signals → both specs; "procedure … messages" phrasing → both specs; more verbs that ask what a network function does). It was tuned **only** on `tests/test_router.py` (12 new cross-spec questions written independently of the test set, plus single-spec guards); the evaluation set was not used for tuning. Both columns use the same retrieval settings (bge-reranker-base, 15 candidates, 512 tokens, hard routing, BM25 weight 1.0); only `retrieval.router_version` differs.
 
 | Router accuracy (config best) | v1 | v2 |
 |---|---|---|
@@ -215,11 +189,52 @@ Router v2 adds three general rules (architecture AND NAS signals → both specs;
 | `best` | cross mrr | 0.446 | 0.446 |
 | `best` | all recall@5 | 0.815 | 0.815 |
 | `best` | all mrr | 0.747 | 0.747 |
-| `routing_only` | cross recall@5 | 0.714 | 0.714 |
-| `routing_only` | cross both_recall@5 | 0.000 | 0.000 |
-| `routing_only` | cross mrr | 0.548 | 0.548 |
-| `routing_only` | all recall@5 | 0.889 | 0.889 |
-| `routing_only` | all mrr | 0.730 | 0.730 |
+
+## Soft routing and BM25 weight (retrieval only)
+
+`retrieval.routing_mode: hard` filters dense and BM25 search to the routed spec(s); `soft` searches both specs and multiplies the RRF score of the routed spec's chunks by `retrieval.soft_routing_weight` (1.5). When the router picks both specs the two modes are identical. `retrieval.bm25_weight` weights the BM25 list in RRF (the dense list keeps weight 1). With the reranker on, both settings only change *which* 15 candidates reach the cross-encoder; the final order is the reranker's. All runs: 15 candidates, 512 tokens, router v2. `no_hybrid` does not use BM25, so its rows depend on the routing mode only.
+
+| Reranker | Routing | BM25 w | Config | R@1 | R@5 | MRR | cross R@5 | cross both-spec R@5 | cross MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| bge-reranker-v2-m3 | hard | 1.0 | `best` | 0.704 | 0.852 | 0.754 | 0.571 | 0.000 | 0.457 |
+| bge-reranker-v2-m3 | hard | – | `no_hybrid` | 0.704 | 0.852 | 0.776 | 0.429 | 0.000 | 0.468 |
+| bge-reranker-v2-m3 | hard | 0.5 | `best` | 0.704 | 0.852 | 0.770 | 0.429 | 0.000 | 0.459 |
+| bge-reranker-v2-m3 | hard | 0.25 | `best` | 0.704 | 0.852 | 0.768 | 0.429 | 0.000 | 0.462 |
+| bge-reranker-v2-m3 | soft | 1.0 | `best` | 0.667 | 0.889 | 0.750 | 0.714 | 0.000 | 0.607 |
+| bge-reranker-v2-m3 | soft | – | `no_hybrid` | 0.741 | 0.889 | 0.807 | 0.571 | 0.000 | 0.587 |
+| bge-reranker-v2-m3 | soft | 0.5 | `best` | 0.741 | 0.889 | 0.807 | 0.571 | 0.000 | 0.589 |
+| bge-reranker-v2-m3 | soft | 0.25 | `best` | 0.741 | 0.889 | 0.801 | 0.571 | 0.000 | 0.589 |
+| bge-reranker-base | hard | 1.0 | `best` | 0.704 | 0.815 | 0.747 | 0.429 | 0.000 | 0.446 |
+| bge-reranker-base | hard | – | `no_hybrid` | 0.778 | 0.852 | 0.817 | 0.429 | 0.000 | 0.462 |
+| bge-reranker-base | hard | 0.5 | `best` | 0.704 | 0.852 | 0.764 | 0.429 | 0.000 | 0.443 |
+| bge-reranker-base | hard | 0.25 | `best` | 0.741 | 0.852 | 0.782 | 0.429 | 0.000 | 0.457 |
+| bge-reranker-base | soft | 1.0 | `best` | 0.667 | 0.852 | 0.747 | 0.571 | 0.000 | 0.518 |
+| bge-reranker-base | soft | – | `no_hybrid` | 0.778 | 0.889 | 0.831 | 0.571 | 0.000 | 0.516 |
+| bge-reranker-base | soft | 0.5 | `best` | 0.704 | 0.889 | 0.783 | 0.571 | 0.000 | 0.514 |
+| bge-reranker-base | soft | 0.25 | `best` | 0.704 | 0.889 | 0.779 | 0.571 | 0.000 | 0.516 |
+
+Paired bootstrap on the MRR of `best` (10,000 resamples, seed 42):
+
+| Reranker | Comparison | Questions | n | Δ MRR | 95% CI | Verdict |
+|---|---|---|---|---|---|---|
+| bge-reranker-v2-m3 | soft − hard, BM25 w 0.5 | all | 27 | +0.037 | [+0.000, +0.106] | within noise |
+| bge-reranker-v2-m3 | soft − hard, BM25 w 0.5 | cross | 7 | +0.131 | [+0.000, +0.385] | within noise |
+| bge-reranker-v2-m3 | BM25 w 0.5 − 1.0, soft | all | 27 | +0.057 | [-0.005, +0.150] | within noise |
+| bge-reranker-v2-m3 | BM25 w 0.5 − 1.0, soft | cross | 7 | -0.018 | [-0.054, +0.000] | within noise |
+| bge-reranker-v2-m3 | chosen − previous settings | all | 27 | +0.053 | [-0.003, +0.142] | within noise |
+| bge-reranker-v2-m3 | chosen − previous settings | cross | 7 | +0.132 | [-0.032, +0.429] | within noise |
+| bge-reranker-base | soft − hard, BM25 w 0.5 | all | 27 | +0.019 | [-0.037, +0.078] | within noise |
+| bge-reranker-base | soft − hard, BM25 w 0.5 | cross | 7 | +0.071 | [+0.000, +0.186] | within noise |
+
+### Final retrieval defaults and why
+
+Selection rule (fixed before looking at generation): highest retrieval MRR of `best` with the default reranker (bge-reranker-v2-m3), ties broken in favour of the simpler or the required component.
+
+- **Routing mode: soft.** MRR 0.807 vs 0.770 for hard routing at the same BM25 weight. The gain comes from cross-spec questions the router sends to one spec: soft routing still lets chunks of the other spec into the 15 candidates (cross MRR 0.589 vs 0.459). Simple questions are unchanged or slightly better, because the 1.5× boost keeps the routed spec on top.
+- **BM25 weight: 0.5.** 0.807 vs 0.750 (1.0) and 0.801 (0.25). At full weight BM25 pushes keyword-matching but off-topic chunks into the reranker's candidate list; at 0.25 it barely contributes.
+- **Hybrid: on.** With these settings `no_hybrid` ties exactly (MRR 0.807, cross MRR 0.587 vs 0.589). The tie is broken in favour of hybrid search: it is a required component of the assignment and BM25 is the component that matches exact identifiers (timers, cause numbers, section numbers) when the dense model misses them.
+
+None of these differences is statistically established on 27 questions (table above), so the choice is a defensible default, not a proven optimum. With bge-reranker-base the ranking differs (`no_hybrid` is best at 0.831), which is one more reason to read the numbers as configuration-specific.
 
 ## Statistical caution
 
@@ -227,69 +242,68 @@ Only **n = 27** in-corpus questions are scored, so one question moves recall@k b
 
 | Component | Comparison | Metric | Δ | 95% CI | Verdict |
 |---|---|---|---|---|---|
-| reranker (all else on) | `best` − `no_reranker` | mrr | +0.125 | [+0.021, +0.243] | robust |
-| reranker (all else on) | `best` − `no_reranker` | recall@5 | +0.000 | [-0.148, +0.148] | within noise |
-| reranker (dense only) | `reranker_only` − `baseline` | mrr | +0.107 | [-0.015, +0.236] | within noise |
+| reranker (all else on) | `best` − `no_reranker` | mrr | +0.159 | [+0.060, +0.262] | robust |
+| reranker (all else on) | `best` − `no_reranker` | recall@5 | +0.000 | [-0.111, +0.111] | within noise |
+| reranker (dense only) | `reranker_only` − `baseline` | mrr | +0.111 | [+0.004, +0.222] | robust |
 | reranker (dense only) | `reranker_only` − `baseline` | recall@5 | +0.000 | [-0.111, +0.111] | within noise |
-| BM25 fusion (with reranker) | `best` − `no_hybrid` | mrr | -0.071 | [-0.165, -0.004] | robust |
-| BM25 fusion (with reranker) | `best` − `no_hybrid` | recall@5 | -0.037 | [-0.111, +0.000] | within noise |
-| BM25 fusion (no reranker) | `hybrid_only` − `baseline` | mrr | -0.104 | [-0.244, +0.038] | within noise |
-| BM25 fusion (no reranker) | `hybrid_only` − `baseline` | recall@5 | -0.111 | [-0.259, +0.000] | within noise |
-| routing (with reranker) | `best` − `no_routing` | mrr | +0.056 | [-0.037, +0.167] | within noise |
-| routing (with reranker) | `best` − `no_routing` | recall@5 | -0.037 | [-0.148, +0.074] | within noise |
+| BM25 fusion (with reranker) | `best` − `no_hybrid` | mrr | +0.001 | [+0.000, +0.002] | within noise |
+| BM25 fusion (with reranker) | `best` − `no_hybrid` | recall@5 | +0.000 | [+0.000, +0.000] | within noise |
+| BM25 fusion (no reranker) | `hybrid_only` − `baseline` | mrr | -0.050 | [-0.171, +0.072] | within noise |
+| BM25 fusion (no reranker) | `hybrid_only` − `baseline` | recall@5 | -0.037 | [-0.111, +0.000] | within noise |
+| routing (with reranker) | `best` − `no_routing` | mrr | +0.037 | [-0.037, +0.130] | within noise |
+| routing (with reranker) | `best` − `no_routing` | recall@5 | +0.000 | [-0.111, +0.111] | within noise |
 | routing (no reranker) | `routing_only` − `baseline` | mrr | +0.052 | [+0.000, +0.120] | within noise |
 | routing (no reranker) | `routing_only` − `baseline` | recall@5 | +0.000 | [+0.000, +0.000] | within noise |
 
-Robust effects on this set: BM25 fusion (with reranker), reranker (all else on). Every other difference in the ablation tables, including hybrid vs no-hybrid, should be read as *not established* until a larger, validated test set confirms it.
+Robust effects on this set: reranker (all else on), reranker (dense only). Every other difference in the ablation tables, including hybrid vs no-hybrid, should be read as *not established* until a larger, validated test set confirms it.
 
 ## Qualitative examples (config `best`)
 
-### Simple question — `s23-02`
+### Simple question — `s23-01`
 
-**Q:** Which functionalities does the SMF provide?
+**Q:** What is the role of the AMF in the 5G System?
 
 **Answer:**
 
-> The Session Management function (SMF) includes the following functionalities:
+> The Access and Mobility Management Function (AMF) includes the following functionality in the 5G System, and some or all of these may be supported in a single instance of an AMF [TS 23.501 §6.2.1]:
 > 
-> - Session Management e.g. Session Establishment, modify and release, including tunnel maintain between UPF and AN node [TS 23.501 §6.2.2].
-> - UE IP address allocation & management (including optional Authorization). The UE IP address may be received from a UPF or from an external data network [TS 23.501 §6.2.2].
-> - DHCPv4 (server and client) and DHCPv6 (server and client) functions [TS 23.501 §6.2.2].
-> - Functionality to respond to Address Resolution Protocol (ARP) requests and / or IPv6 Neighbour Solicitation requests based on local cache information for the Ethernet PDUs. The SMF responds to the ARP and / or the IPv6 Neighbour Solicitation Request by providing the MAC address corresponding to the IP address sent in the request [TS 23.501 §6.2.2].
-> - Selection and control of UP function, including controlling the UPF to proxy ARP or IPv6 Neighbour Discovery, or to forward all ARP/IPv6 Neighbour Solicitation traffic to the SMF, for Ethernet PDU Sessions [TS 23.501 §6.2.2].
-> - Configures traffic steering at UPF to route traffic to proper destination [TS 23.501 §6.2.2].
-> - 5G VN group management, e.g. maintain the topology of the involved PSA UPFs, establish and release the N19 tunnels between PSA UPFs, configure traffic forwarding at UPF to apply local switching, N6-based forwarding or N19-based forwarding, manage traffic forwarding in the case that a SMF Set or multiple SMF Sets are serving a 5G VN [TS 23.501 §6.2.2].
-> - Termination of interfaces towards Policy control functions [TS 23.501 §6.2.2].
-> - Lawful intercept (for SM events and interface to LI System) [TS 23.501 §6.2.2].
-> - Support for charging [TS 23.501 §6.2.2].
-> - Control and coordination of charging data collection at UPF [TS 23.501 §6.2.2].
-> - Termination of SM parts of NAS messages [TS 23.501 §6.2.2].
-> - Downlink Data Notification [TS 23.501 §6.2.2].
-> - Initiator of AN specific SM information, sent via AMF over N2 to AN [TS 23.501 §6.2.2].
-> - Determine SSC mode of a session [TS 23.501 §6.2.2].
-> - Support for Control Plane CIoT 5GS Optimisation [TS 23.501 §6.2.2].
-> - Support of header compression [TS 23.501 §6.2.2].
-> - Act as I-SMF in deployments where I-SMF can be inserted, removed and relocated [TS 23.501 §6.2.2].
-> - Provisioning of external parameters (Expected UE Behaviour parameters or Network Configuration parameters) [TS 23.501 §6.2.2].
-> - Support P-CSCF discovery for IMS services [TS 23.501 §6.2.2].
-> - Act as V-SMF with following roaming functionalities [TS 23.501 §6.2.2]:
->  - Handle local enforcement to apply QoS SLAs (VPLMN) [TS 23.501 §6.2.2].
->  - Charging (VPLMN) [TS 23.501 §6.2.2].
->  - Lawful intercept (in VPLMN for SM events and interface to LI System) [TS 23.501 §6.2.2].
-> - Support for interaction with external DN for transport of signalling for PDU Session authentication/authorization by external DN [TS 23.501 §6.2.2].
-> - Instructs UPF and NG-RAN to perform redundant transmission on N3/N9 interfaces [TS 23.501 §6.2.2].
-> - Generation of the TSC Assistance Information based on the TSC Assistance Container received from the PCF [TS 23.501 §6.2.2].
-> - Support for RAN feedback for BAT offset and adjusted periodicity as defined in clause 5.27.2.5 [TS 23.501 §6.2.2].
-> - Policy related functionalities as described in clause 6.2.2 of TS 23.503 [45] [TS 23.501 §6.2.2].
-> - Support monitoring in roaming scenarios (normalization of reports according to roaming agreements between VPLMN and HPLMN, and generation of charging information for Monitoring Event Reports that are sent to the HPLMN) [TS 23.501 §6.2.2].
-> - Support Edge Computing enhancements (Selection of EASDF, obtain and/or provision DNS security information of the EASDF and provision of its address to the UE as the DNS Server for the PDU session; Usage of EASDF services as defined in TS 23.548 [130]; Provision and updates of ECS Address Configuration Information to the UE for supporting the Application Layer Architecture defined in TS 23.558 [134]; for supporting the HR-SBO as defined in clause 6.7 of TS 23.548 [130]) [TS 23.501 §6.2.2].
-> - Support Network Slice Admission Control (Support of NSAC for maximum number of PDU sessions as defined in clauses 5.15.11.2, 5.15.11.3 and 5.15.11.5; Support of NSAC for maximum number of UEs as defined in clauses 5.15.11.3 and 5.15.11.5) [TS 23.501 §6.2.2].
-> - Providing per-QoS flow Non-3GPP QoS assistance information to the UE (e.g. PEGC) and formulation of the CN PDB based on non-3GPP delay budget from UE (e.g. PEGC) as described in clause 5.44.3.4 [TS 23.501 §6.2.2].
-> - Support of PDU Set based handling as described in clause 5.37.5 [TS 23.501 §6.2.2].
-> - Functionalities to support Network Slice Replacement as described in clause 5.15.19 [TS 23.501 §6.2.2].
-> - Functionalities to support indirect UPF event exposure service subscription on behalf of the consumer NF(s) as described in clause 4.15.4.5 of TS 23.502 [3] [TS 23.501 §6.2.2].
+> * Termination of RAN CP interface (N2) [TS 23.501 §6.2.1].
+> * Termination of NAS (N1), NAS ciphering and integrity protection [TS 23.501 §6.2.1].
+> * Registration management [TS 23.501 §6.2.1].
+> * Connection management [TS 23.501 §6.2.1].
+> * Reachability management [TS 23.501 §6.2.1].
+> * Mobility Management [TS 23.501 §6.2.1].
+> * Lawful intercept (for AMF events and interface to LI System) [TS 23.501 §6.2.1].
+> * Provide transport for SM messages between UE and SMF [TS 23.501 §6.2.1].
+> * Transparent proxy for routing SM messages [TS 23.501 §6.2.1].
+> * Access Authentication [TS 23.501 §6.2.1].
+> * Access Authorization [TS 23.501 §6.2.1].
+> * Provide transport for SMS messages between UE and SMSF [TS 23.501 §6.2.1].
+> * Security Anchor Functionality (SEAF) as specified in TS 33.501 [29] [TS 23.501 §6.2.1].
+> * Location Services management for regulatory services [TS 23.501 §6.2.1].
+> * Provide transport for Location Services messages between UE and LMF as well as between RAN and LMF [TS 23.501 §6.2.1].
+> * EPS Bearer ID allocation for interworking with EPS [TS 23.501 §6.2.1].
+> * UE mobility event notification [TS 23.501 §6.2.1].
+> * S-NSSAIs per TA mapping notification [TS 23.501 §6.2.1].
+> * Support for Control Plane CIoT 5GS Optimisation [TS 23.501 §6.2.1].
+> * Support for User Plane CIoT 5GS Optimisation [TS 23.501 §6.2.1].
+> * Support for restriction of use of Enhanced Coverage [TS 23.501 §6.2.1].
+> * Provisioning of external parameters (Expected UE Behaviour parameters or Network Configuration parameters) [TS 23.501 §6.2.1].
+> * Support for Network Slice-Specific Authentication and Authorization [TS 23.501 §6.2.1].
+> * Support for charging [TS 23.501 §6.2.1].
+> * Controlling the 5G access stratum-based time distribution based on UE's subscription data [TS 23.501 §6.2.1].
+> * Controlling the gNB's time synchronization status reporting and subscription [TS 23.501 §6.2.1].
+> 
+> To support non-3GPP access networks, the AMF may also include [TS 23.501 §6.2.1]:
+> * Support of N2 interface with N3IWF/TNGF [TS 23.501 §6.2.1].
+> * Support of NAS signalling with a UE over N3IWF/TNGF [TS 23.501 §6.2.1].
+> * Support of authentication of UEs connected over N3IWF/TNGF [TS 23.501 §6.2.1].
+> * Management of mobility, authentication and separate security context state(s) of a UE connected via a non-3GPP access or connected via a 3GPP access and a non-3GPP access simultaneously [TS 23.501 §6.2.1].
+> * Support for a co-ordinated RM management context valid over a 3GPP access and a Non 3GPP access [TS 23.501 §6.2.1].
+> * Support for dedicated CM management contexts for the UE for connectivity over non-3GPP access [TS 23.501 §6.2.1].
+> * Determine whether the serving N3IWF/TNGF is appropriate based on the slices supported by the N3IWFs/TNGFs [TS 23.501 §6.2.1].
 
-Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.945 · sources: TS 23.501 §6.2.2, TS 23.501 §6.3.2, TS 23.501 §5.39.1, TS 23.501 §6.3.2, TS 23.501 §6.3.3.2, TS 23.501 §5.34.6.1 · judge: The answer provides a comprehensive and accurate list of SMF functionalities directly supported by the context with appropriate citations.
+Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.952 · sources: TS 23.501 §5.21.2.1, TS 23.501 §4.2.2, TS 23.501 §6.2.1, TS 23.501 §5.19.5.2, TS 23.501 §5.20, TS 23.501 §5.19.3 · judge: The answer accurately and completely lists the role and functionalities of the AMF based directly on the provided context.
 
 ### Cross-spec question — `x-05`
 
@@ -321,17 +335,14 @@ Route: TS 24.501, TS 23.501 (no signal) · gate score 0.050 · sources: none · 
 
 ## Failure analysis
 
-**Retrieval misses (config `best`, no gold section in top-5): 5**
+**Retrieval misses (config `best`, no gold section in top-5): 3**
 
-- `s23-01` gold TS 23.501 §6.2.1 — route TS 23.501; top-3 retrieved: TS 23.501 §3.2, TS 23.501 §4.2.2, TS 23.501 §5.21.2.1; R@10 = 0.0
-- `x-01` gold TS 23.501 §5.3.2; TS 24.501 §5.5.1.2 — route TS 23.501, TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.5, TS 23.501 §5.3.3.1, TS 24.501 §4.4.2.5; R@10 = 0.0
-- `x-02` gold TS 23.501 §5.6.1; TS 24.501 §6.4.1 — route TS 24.501; top-3 retrieved: TS 24.501 §6.1.1, TS 24.501 §6.2.3, TS 24.501 §8.3.1.5; R@10 = 0.0
-- `x-04` gold TS 23.501 §5.3.2.3; TS 24.501 §5.3.7, §10.2 — route TS 23.501; top-3 retrieved: TS 23.501 §5.16.4.4, TS 23.501 §5.4.1.3, TS 23.501 §5.4.1.1; R@10 = 0.0
-- `x-07` gold TS 23.501 §5.10.1, §6.2.1; TS 24.501 §5.4.1, §5.4.2 — route TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.6, TS 24.501 §4.4.1, TS 24.501 §4.4.4.3; R@10 = 1.0
+- `x-01` gold TS 23.501 §5.3.2; TS 24.501 §5.5.1.2 — route TS 23.501, TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.5, TS 24.501 §5.3.1.1, TS 24.501 §4.4.2.5; R@10 = 0.0
+- `x-02` gold TS 23.501 §5.6.1; TS 24.501 §6.4.1 — route TS 24.501; top-3 retrieved: TS 24.501 §6.1.1, TS 24.501 §6.2.18, TS 24.501 §6.2.3; R@10 = 0.0
+- `x-07` gold TS 23.501 §5.10.1, §6.2.1; TS 24.501 §5.4.1, §5.4.2 — route TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.5, TS 24.501 §4.4.2.5, TS 24.501 §4.4.2.5; R@10 = 1.0
 
-**Answers not judged fully correct (config `best`): 6**
+**Answers not judged fully correct (config `best`): 5**
 
-- `s23-01` correctness 0.0 faithfulness 1.0 — The answer is a refusal, but the provided reference contains the answer, making correctness 0. refused
 - `s23-07` correctness 0.0 faithfulness 1.0 — The answer refuses to answer because the information is missing from the context, but the reference contains the answer, making correctness 0. refused
 - `x-01` correctness 0.0 faithfulness 1.0 — The reference answer provides details on the registration procedure and NAS messages (such as REGISTRATION REQUEST, REGISTRATION ACCEPT, and REGISTRATION COMPLETE), but the assistant incorrectly refused to answer despite relevant information being available in the context/specs. refused
 - `x-02` correctness 0.0 faithfulness 1.0 — The answer refuses to answer, but the reference contains the information, and parts of the context and standard knowledge base allow for a partial or full answer. refused

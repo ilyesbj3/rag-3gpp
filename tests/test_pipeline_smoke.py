@@ -194,7 +194,9 @@ def test_generation_cache_staleness():
 
 def test_soft_routing_searches_both_specs():
     llm = FakeLLM(lambda u: "x [TS 24.501 §A.1].")
-    hard = make_pipeline(llm, use_reranker=False).retrieve_full("What does cause #9 mean in 5GMM?")
+    hard = make_pipeline(llm, use_reranker=False, routing_mode="hard").retrieve_full(
+        "What does cause #9 mean in 5GMM?"
+    )
     assert {c.chunk.spec for c in hard.candidates} == {"TS 24.501"}
     soft = make_pipeline(llm, use_reranker=False, routing_mode="soft").retrieve_full(
         "What does cause #9 mean in 5GMM?"

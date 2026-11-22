@@ -114,6 +114,11 @@ static frontend from `app/web/` (plain HTML/CSS/JS, no build step; specification
 [`UI_SPEC.md`](UI_SPEC.md)). The pipeline and models load once at startup (warm-up ≈ 30 s on
 CPU); if the index or Qdrant is missing the page shows the command that fixes it.
 
+**Fast demo profile:** `RAG_CONFIG=configs/fast.yaml uvicorn app.server:app --port 8000`
+(`make app-fast`) swaps in `bge-reranker-base`. Use it for a live demo on a CPU laptop
+when answers must come back quickly and the questions are in English; keep the default
+(`bge-reranker-v2-m3`) for the best answer quality and for French questions.
+
 - Chat with citation chips: clicking one opens and highlights the source in the right panel.
 - Sidebar: hybrid / reranker / routing switches, chunks to the LLM, language model
   (Auto = Gemini → Groq → Grok, skipping any provider without a key), example questions.
@@ -314,7 +319,14 @@ eval/        testset.json · testset_review.md · metrics.py · configs.py ·
              run_retrieval_eval.py · run_generation_eval.py · make_report.py · results/
 docs/        architecture.md · presentation_outline.md
 tests/       unit tests (offline: fixture chunks, fake LLM)
+CLAUDE.md · UI_SPEC.md · PROGRESS.md   process documentation (see below)
 ```
+
+## Development process
+
+The project was developed with an AI coding assistant. `CLAUDE.md` (project specification
+and rules), `UI_SPEC.md` (web interface specification) and `PROGRESS.md` (build log,
+decisions and open items) are kept in the repository as process documentation.
 
 ## References
 
