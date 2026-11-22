@@ -1,8 +1,9 @@
 """Rule-based query routing by specification (CLAUDE.md §8.1).
 
 Each matching signal adds its weight to the spec's score. Decision:
-explicit spec mention > explicit cross-cutting phrase > one spec dominates (score >= 2x the
-other and >= 1) > both specs (also when there is no signal at all).
+explicit spec mention > cross-cutting phrase (incl. "procedure ... messages") > architecture
+AND NAS signals both present (each >= 1) > one spec dominates (score >= 2x the other and
+>= 1) > both specs (also when there is no signal at all).
 """
 
 from __future__ import annotations
@@ -14,13 +15,14 @@ from src.schemas import RouteDecision
 TS23 = "TS 23.501"
 TS24 = "TS 24.501"
 BOTH = {TS23, TS24}
+ROUTER_VERSION = 2  # bump when the rules change (recorded in every answer's config snapshot)
 
 _I = re.IGNORECASE
 
 _NAS_VERB = r"(?:request|accept|reject|command|complete)"
 _NAS_PROC = (
     r"(?:de-?registration|registration|service|authentication|security mode|identity|"
-    r"configuration update|pdu session (?:establishment|modification|release)|notification)"
+    r"configuration update|pdu session(?: establishment| modification| release)?|notification)"
 )
 
 # (pattern, weight). Patterns run on the original question, case-insensitively.
@@ -41,7 +43,11 @@ SIGNALS_24: list[tuple[re.Pattern[str], float]] = [
 ]
 
 _NF = r"\b(?:amf|smf|upf|pcf|udm|udr|ausf|nssf|nef|nrf|af|scp|sepp|nwdaf)\b"
-_ARCH_CONTEXT = r"\b(?:role|function|functionalit|responsib|architecture|purpose|what is|what does)"
+# Words that ask about what a network function is or does (not just name it in passing).
+_ARCH_CONTEXT = (
+    r"\b(?:role|function|functionalit|responsib|architecture|purpose|what is|what does|"
+    r"handl|select|interact|serve|manage|work)"
+)
 
 SIGNALS_23: list[tuple[re.Pattern[str], float]] = [
     (re.compile(r"\breference points?\b", _I), 2),
@@ -68,7 +74,11 @@ CROSS_PHRASES = [
     re.compile(r"\bend-to-end\b", _I),
     re.compile(r"architecture and signall?ing", _I),
     re.compile(r"\b(?:stage 2 and stage 3|both specifications|both specs)\b", _I),
+    # a procedure together with the messages it uses (Stage 2 procedure + Stage 3 signalling)
+    re.compile(r"\bprocedures?\b.*\bmessages?\b|\bmessages?\b.*\bprocedures?\b", _I),
 ]
+# Architecture AND NAS signals both at least this strong -> search both specs.
+MIXED_MIN_SCORE = 1.0
 _UE_AMF = re.compile(r"between the ue and the amf", _I)
 _PROCEDURE = re.compile(r"\bprocedure", _I)
 
@@ -95,6 +105,8 @@ def route(question: str, use_routing: bool = True) -> RouteDecision:
         return RouteDecision(specs=mentions, reason="explicit spec mention", scores=scores)
     if any(rx.search(q) for rx in CROSS_PHRASES) or (_UE_AMF.search(q) and _PROCEDURE.search(q)):
         return RouteDecision(specs=set(BOTH), reason="cross-spec phrase", scores=scores)
+    if s23 >= MIXED_MIN_SCORE and s24 >= MIXED_MIN_SCORE:
+        return RouteDecision(specs=set(BOTH), reason="architecture and NAS signals", scores=scores)
     if s24 >= 1 and s24 >= 2 * s23:
         return RouteDecision(specs={TS24}, reason="NAS / stage 3 signals", scores=scores)
     if s23 >= 1 and s23 >= 2 * s24:

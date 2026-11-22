@@ -19,7 +19,7 @@ from src.generation.citation_check import check_citations
 from src.generation.llm import REFUSAL, build_llm
 from src.generation.prompts import build_user_prompt, system_prompt_for
 from src.retrieval.hybrid import fuse, select_final
-from src.retrieval.router import route
+from src.retrieval.router import ROUTER_VERSION, route
 from src.schemas import Answer, Chunk, RetrievedChunk, RouteDecision
 
 log = logging.getLogger(__name__)
@@ -143,6 +143,8 @@ class RAGPipeline:
             "reranker_threshold": s.gate.reranker_threshold,
             "dense_threshold": s.gate.dense_threshold,
             "llm_provider": s.llm.provider,
+            "router_version": ROUTER_VERSION,
+            "reranker_max_length": s.reranker.max_length,
         }
 
     # ------------------------------------------------------------------ retrieval
