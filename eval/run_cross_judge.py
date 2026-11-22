@@ -104,7 +104,8 @@ def run_judge(config: str, judge: str, sleep_s: float, cooldowns: int) -> None:
         done = load_judgements(path)
         print(f"[{answers} answers × {judge} judge] {len(done)}/{len(ans)} cached", flush=True)
         for qid, row in ans.items():
-            if (done.get(qid) or {}).get("correctness") is not None:
+            prev = done.get(qid) or {}
+            if prev.get("correctness") is not None or prev.get("skipped"):
                 continue
             a = Answer.model_validate(row["answer"])
             context = build_user_prompt(a.question, a.sources) if a.sources else ""
@@ -113,6 +114,9 @@ def run_judge(config: str, judge: str, sleep_s: float, cooldowns: int) -> None:
                     done[qid] = {"id": qid, **judge_answer(llm, items[qid], a.text, context)}
                     break
                 except RuntimeError as e:
+                    if "413" in str(e) or "too large" in str(e).lower():
+                        done[qid] = {"id": qid, "skipped": "request too large for the judge"}
+                        break
                     if attempt == cooldowns:
                         save_judgements(path, done)
                         print(f"   STOPPED at {qid}: {str(e).splitlines()[0]}")
@@ -148,8 +152,19 @@ def answer_metrics(ans: dict[str, dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def common_ids(config: str) -> set[str]:
+    """Questions answered by both models and judged by both judges (fair 2x2 comparison)."""
+    sets = []
+    for answers in ANSWER_SETS:
+        for judge in ("gemini", "groq"):
+            j = load_judgements(judge_path(config, answers, judge))
+            sets.append({k for k, v in j.items() if v.get("correctness") is not None})
+    return set.intersection(*sets) if sets else set()
+
+
 def report(config: str) -> list[dict[str, Any]]:
     rows = []
+    common = common_ids(config)
     for answers in ANSWER_SETS:
         ans = frozen_answers(config, answers)
         if not ans:
@@ -157,7 +172,11 @@ def report(config: str) -> list[dict[str, Any]]:
         am = answer_metrics(ans)
         for judge in ("gemini", "groq"):
             j = load_judgements(judge_path(config, answers, judge))
-            vals = [v for v in j.values() if v.get("correctness") is not None]
+            vals = [
+                v
+                for k, v in j.items()
+                if v.get("correctness") is not None and (not common or k in common)
+            ]
             rows.append(
                 {
                     "config": config,
@@ -166,6 +185,7 @@ def report(config: str) -> list[dict[str, Any]]:
                     "judge": judge,
                     "judge_model": next((v.get("judge_model") for v in vals), None),
                     "n_judged": len(vals),
+                    "n_common": len(common),
                     "n_answers": am["n"],
                     "faithfulness": mean(
                         [v["faithfulness"] for v in vals if v.get("faithfulness") is not None]
