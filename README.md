@@ -156,6 +156,9 @@ gold clause or one of its sub-clauses.
 | baseline | ✗ | ✗ | ✗ | 0.556 | 0.889 | 0.926 | 0.677 |
 
 **Generation** — 30 questions per config, answers and LLM judge = `gemini-3.5-flash-lite`.
+Faithfulness and correctness are judged **by the same model that wrote the answers**; the
+cross-judging table in `eval/results/REPORT.md` (Gemini and Groq answers × Gemini and Groq
+judges) is the check for self-preference bias.
 
 | Config | Faithfulness | Correctness | Citation accuracy | Gold section cited | Refusal F1 | False refusals |
 |---|---|---|---|---|---|---|

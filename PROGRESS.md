@@ -207,6 +207,38 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
   exhausted. Resume: `RAG_CONFIG=configs/rel17.yaml python -m eval.run_generation_eval
   --provider gemini --tag rel17 --configs best` then `python -m eval.make_bonus_report`.
 
+## Follow-up round (after phase 12) — status
+1. Cross-judging — infra done (`eval/run_cross_judge.py`, frozen answer sets in
+   `eval/results/raw/crossjudge/`, judgements cached per (answer model, judge model)).
+   Groq `best` answers generated with **router v1** (env `RAG_RETRIEVAL__ROUTER_VERSION=1`) so
+   they match the frozen Gemini answers; Groq-judge passes next; Gemini-judge pass on the
+   Groq answers after the Gemini daily reset.
+2. Rate limits — done: `ProviderError.retry_after` from the Retry-After header or the error
+   text; FallbackLLM sleeps that long, or moves on when it exceeds `max_wait_s` (90 s, e.g.
+   daily quotas). Unit tests with fake providers and a fake 429. The web API maps a
+   rate-limited chain failure to 502 "Rate limit reached, try again in about a minute".
+3. Web UI — done (`feat(ui)`): FastAPI + static frontend per UI_SPEC.md; acceptance run in
+   headless Edge via the DevTools protocol: **24/24 checks pass** (empty state, chips →
+   source flash, gate refusal with below-gate candidates, toggles → config/badge/score line,
+   forced Groq, real Gemini-quota fallback badge + pill, removed-citation box, no horizontal
+   scroll at 1440/1024/390 px, Tab order, evaluation page + preliminary banner, no console
+   errors / CSP violations). Screenshots in `docs/screenshots/`. Streamlit removed.
+   Dependencies added as approved by the spec: fastapi 0.165.0, uvicorn 0.54.0 (httpx was
+   already present); vendored marked 12.0.2 + DOMPurify 3.1.6.
+5. Router v2 — rules done, tuned only on `tests/test_router.py` (12 new cross questions +
+   6 guards; v1 got 5/12 cross, v2 12/12). `retrieval.router_version` (1|2) keeps v1
+   reproducible (v1 reproduces all 30 stored routes). Eval re-run pending (with the new
+   reranker default).
+6. False-refusal breakdown — done in REPORT.md: all 15 false refusals across the 5
+   generation configs were LLM refusals (gate scores 0.63–0.995); the gate refused none.
+7. Statistical caution — done in REPORT.md (paired bootstrap, n = 27, 1 question = 0.037).
+   Robust: reranker effect with dense-only retrieval (MRR +0.118, CI [+0.010, +0.232]) and
+   the *negative* effect of BM25 fusion when the reranker is on (MRR −0.056, CI [−0.115,
+   −0.010]). The reranker with everything else on (+0.112) has a CI touching 0
+   ([−0.016, +0.243]); all other differences are within noise.
+- Generation cache now regenerates answers whose settings (incl. router version, reranker
+  length/top-n) differ from the current run — prevents stale numbers after default changes.
+
 ## Open issues
 - Cross-spec questions are the main failure mode (routing + retrieval), see REPORT.md.
 - Rel-17 generation bonus partial (quota) — resumable.

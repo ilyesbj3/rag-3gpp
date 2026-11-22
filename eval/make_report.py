@@ -297,7 +297,9 @@ def generation_section(provider: str, prelim: str) -> tuple[list[str], list[str]
     out += [
         "",
         "Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric "
-        "(`eval/metrics.py`), judge = Gemini. Citation accuracy = valid citations / all "
+        "(`eval/metrics.py`), judge = Gemini — **the same model that generated the "
+        "answers**, so these two columns may carry self-preference bias; see the cross-judging "
+        "section for the check. Citation accuracy = valid citations / all "
         "citations (strict: exact section among the sources; loose: also ancestors). Gold "
         "cited = answer cites ≥1 gold section.",
     ]
@@ -446,6 +448,310 @@ def failure_section(provider: str) -> list[str]:
     return out
 
 
+# ----------------------------------------------------------------------------- added sections
+def _raw_rows(name: str) -> list[dict]:
+    path = RAW_DIR / name
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))["rows"]
+
+
+def _json_file(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def paired_bootstrap(a: list[float], b: list[float], n_boot: int = 10000, seed: int = 42):
+    """Mean difference a - b and its 95% paired-bootstrap interval."""
+    import random
+
+    rnd = random.Random(seed)
+    diffs = [x - y for x, y in zip(a, b, strict=True)]
+    n = len(diffs)
+    boots = sorted(sum(diffs[rnd.randrange(n)] for _ in range(n)) / n for _ in range(n_boot))
+    return sum(diffs) / n, boots[int(0.025 * n_boot)], boots[int(0.975 * n_boot)]
+
+
+STAT_PAIRS = [
+    ("best", "no_reranker", "reranker (all else on)"),
+    ("reranker_only", "baseline", "reranker (dense only)"),
+    ("best", "no_hybrid", "BM25 fusion (with reranker)"),
+    ("hybrid_only", "baseline", "BM25 fusion (no reranker)"),
+    ("best", "no_routing", "routing (with reranker)"),
+    ("routing_only", "baseline", "routing (no reranker)"),
+]
+
+
+def statistics_section() -> list[str]:
+    rows = {
+        n: {r["id"]: r for r in _raw_rows(f"retrieval_{n}.json") if r["type"] != "out_of_corpus"}
+        for n in CONFIGS
+    }
+    if not all(rows.values()):
+        return []
+    n = len(next(iter(rows.values())))
+    out = [
+        "## Statistical caution",
+        "",
+        f"Only **n = {n}** in-corpus questions are scored, so one question moves recall@k by "
+        f"**{1 / n:.3f}** and a difference of a few hundredths is a single question. The table "
+        "gives the paired difference of per-question scores between two configurations that "
+        "differ by one component, with a 95% paired-bootstrap interval (10,000 resamples, seed "
+        "42). A difference is called *robust* only when the interval excludes 0; otherwise it "
+        "is within noise for this test set.",
+        "",
+    ]
+    table = []
+    for a, b, label in STAT_PAIRS:
+        ids = sorted(rows[a])
+        for metric in ("mrr", "recall@5"):
+            d, lo, hi = paired_bootstrap(
+                [rows[a][i][metric] for i in ids], [rows[b][i][metric] for i in ids]
+            )
+            verdict = "robust" if lo > 0 or hi < 0 else "within noise"
+            table.append(
+                [label, f"`{a}` − `{b}`", metric, f"{d:+.3f}", f"[{lo:+.3f}, {hi:+.3f}]", verdict]
+            )
+    out += md_table(["Component", "Comparison", "Metric", "Δ", "95% CI", "Verdict"], table)
+    robust = sorted({r[0] for r in table if r[5] == "robust"})
+    out += [
+        "",
+        "Robust effects on this set: "
+        + (", ".join(robust) if robust else "none")
+        + ". Every other difference in the ablation tables, including hybrid vs no-hybrid, "
+        "should be read as *not established* until a larger, validated test set confirms it.",
+        "",
+    ]
+    return out
+
+
+def false_refusal_section(provider: str) -> list[str]:
+    table = []
+    for cfg in CONFIGS:
+        for r in load_gen(cfg, provider).values():
+            a = r["answer"]
+            if r["type"] != "out_of_corpus" and a["refused"]:
+                by = (
+                    "gate (LLM not called)"
+                    if not a.get("llm_provider")
+                    else f"LLM ({a['llm_model']})"
+                )
+                table.append([f"`{cfg}`", f"`{r['id']}`", r["type"], by, f(a.get("gate_score"))])
+    if not table:
+        return []
+    gate = sum(t[3].startswith("gate") for t in table)
+    out = [
+        "## False refusals: gate or LLM?",
+        "",
+        f"{len(table)} in-corpus questions were refused across the generation configurations: "
+        f"**{gate} by the score gate**, **{len(table) - gate} by the LLM** after it saw the "
+        "sources. A gate refusal means retrieval found nothing above the threshold; an LLM "
+        "refusal means the model judged the retrieved sources insufficient (typically one half "
+        "of a cross-spec question was missing).",
+        "",
+    ]
+    out += md_table(["Config", "Question", "Type", "Refused by", "Gate score"], table)
+    return out + [""]
+
+
+def cross_judge_section() -> list[str]:
+    rows = read_csv(RESULTS_DIR / "cross_judge.csv")
+    if not rows:
+        return []
+    cell = {(r["answers"], r["judge"]): r for r in rows}
+    ans_models = {r["answers"]: r["answer_model"] for r in rows}
+    judge_models = {r["judge"]: r["judge_model"] for r in rows if r["judge_model"]}
+    out = [
+        "## Cross-judging: self-preference check",
+        "",
+        "The main generation tables are judged by the same model that wrote the answers "
+        "(gemini-3.5-flash-lite judges gemini-3.5-flash-lite). As a check, the `best` answers of "
+        "two models are each judged by both judges, on frozen answer sets "
+        "(`eval/results/raw/crossjudge/`) with the same rubric. Both answer sets were produced "
+        "with router v1 (the router at the time of the original run).",
+        "",
+    ]
+
+    def cell_txt(a, j, metric):
+        c = cell.get((a, j))
+        if not c or c["n_judged"] in ("0", ""):
+            return "pending"
+        return f"{f(c[metric], 2)} (n={c['n_judged']})"
+
+    for metric in ("faithfulness", "correctness"):
+        hdr = ["Answers \\ Judge"] + [
+            f"{j} judge ({judge_models.get(j, '?')})" for j in ("gemini", "groq")
+        ]
+        body = [
+            [f"{a} answers ({ans_models.get(a, '?')})"]
+            + [cell_txt(a, j, metric) for j in ("gemini", "groq")]
+            for a in ("gemini", "groq")
+        ]
+        out += [f"**{metric.capitalize()}**", ""] + md_table(hdr, body) + [""]
+    out += ["Metrics that need no judge (same frozen answers):", ""]
+    seen = []
+    for a in ("gemini", "groq"):
+        c = cell.get((a, "gemini")) or cell.get((a, "groq"))
+        if c:
+            seen.append(
+                [
+                    f"{a} ({c['answer_model']})",
+                    f(c["citation_accuracy"], 2),
+                    f(c["gold_citation_recall"], 2),
+                    f(c["refusal_precision"], 2),
+                    f(c["refusal_recall"], 2),
+                    f(c["refusal_f1"], 2),
+                    f(c["false_refusals"], 0),
+                ]
+            )
+    out += md_table(
+        [
+            "Answers",
+            "Citation acc.",
+            "Gold cited",
+            "Refusal P",
+            "Refusal R",
+            "Refusal F1",
+            "False refusals",
+        ],
+        seen,
+    ) + [""]
+
+    def val(a, j, m):
+        c = cell.get((a, j))
+        if not c or c["n_judged"] in ("0", "") or c[m] in ("", "nan"):
+            return None
+        return float(c[m])
+
+    notes = []
+    for m in ("faithfulness", "correctness"):
+        gg, gq, qg, qq = (
+            val("gemini", "gemini", m),
+            val("gemini", "groq", m),
+            val("groq", "gemini", m),
+            val("groq", "groq", m),
+        )
+        if None not in (gg, gq, qg, qq):
+            bias = ((gg - gq) + (qq - qg)) / 2
+            notes.append(
+                f"{m}: on average a judge scores its own model's answers {bias:+.2f} higher than "
+                f"the other judge does (Gemini judge on Gemini answers {gg - gq:+.2f}, Groq judge "
+                f"on Groq answers {qq - qg:+.2f})"
+            )
+    if notes:
+        out += [
+            "**Self-preference.** " + "; ".join(notes) + ". A positive value is a "
+            "self-preference bias of that size; with 30 questions, a few hundredths is one or "
+            "two answers, so only a gap that both judges agree on (same ranking of the two "
+            "answer sets) should be trusted.",
+            "",
+        ]
+    else:
+        out += [
+            "Some cells are still pending (free-tier quotas); complete them with "
+            "`python -m eval.run_cross_judge --judge gemini` / `--judge groq`.",
+            "",
+        ]
+    return out
+
+
+def reranker_bench_section() -> list[str]:
+    rows = read_csv(RESULTS_DIR / "reranker_bench.csv")
+    if not rows:
+        return []
+    out = [
+        "## Reranker speed / quality benchmark (CPU)",
+        "",
+        "MRR / recall of the `best` configuration on the in-corpus questions for each number of "
+        "fused candidates sent to the reranker (`retrieval.fused_top_n`) and truncation length "
+        "(`reranker.max_length`). Latency = reranking time per answer, measured without cache "
+        "on a fixed sample of questions; retrieval = reranking + routing / dense / BM25. The "
+        "LLM adds ≈ 2 s (see the latency table).",
+        "",
+    ]
+    out += md_table(
+        [
+            "Reranker",
+            "fused_top_n",
+            "max_length",
+            "MRR",
+            "R@5",
+            "R@10",
+            "rerank s/answer",
+            "max s",
+            "retrieval s/answer",
+        ],
+        [
+            [
+                r["model"].split("/")[-1],
+                r["fused_top_n"],
+                r["max_length"],
+                f(r["mrr"]),
+                f(r["recall@5"]),
+                f(r["recall@10"]),
+                r["rerank_s_mean"],
+                r["rerank_s_max"],
+                r["retrieval_s_mean"],
+            ]
+            for r in rows
+        ],
+    )
+    choice = _json_file(RESULTS_DIR / "reranker_choice.json")
+    if choice:
+        out += ["", f"**Chosen default:** {choice.get('summary', '')}"]
+    return out + [""]
+
+
+def router_before_after_section() -> list[str]:
+    old = {r["config"]: r for r in read_csv(RESULTS_DIR / "router_accuracy_router_v1.csv")}
+    new = {r["config"]: r for r in read_csv(RESULTS_DIR / "router_accuracy.csv")}
+    if "best" not in old or "best" not in new:
+        return []
+    ret_old = {
+        (r["config"], r["group"]): r
+        for r in read_csv(RESULTS_DIR / "retrieval_ablation_router_v1.csv")
+    }
+    ret_new = {
+        (r["config"], r["group"]): r for r in read_csv(RESULTS_DIR / "retrieval_ablation.csv")
+    }
+    out = [
+        "## Router: before / after",
+        "",
+        "Router v2 adds three general rules (architecture AND NAS signals → both specs; "
+        '"procedure … messages" phrasing → both specs; more verbs that ask what a network '
+        "function does). It was tuned **only** on `tests/test_router.py` (12 new cross-spec "
+        "questions written independently of the test set, plus single-spec guards); the "
+        "evaluation set was not used for tuning. v1 = the original run.",
+        "",
+    ]
+    body = []
+    for k, label in (
+        ("route_superset", "route ⊇ gold specs"),
+        ("route_exact", "exact route"),
+        ("exact_simple-23", "exact, simple 23.501"),
+        ("exact_simple-24", "exact, simple 24.501"),
+        ("exact_cross", "exact, cross-spec"),
+    ):
+        body.append([label, f(old["best"].get(k)), f(new["best"].get(k))])
+    out += md_table(["Router accuracy (config best)", "v1", "v2"], body) + [""]
+    body = []
+    for cfg in ("best", "routing_only"):
+        for g, m in (
+            ("cross", "recall@5"),
+            ("cross", "both_recall@5"),
+            ("cross", "mrr"),
+            ("all", "recall@5"),
+            ("all", "mrr"),
+        ):
+            o, n = ret_old.get((cfg, g)), ret_new.get((cfg, g))
+            if o and n:
+                body.append([f"`{cfg}`", f"{g} {m}", f(o.get(m)), f(n.get(m))])
+    out += md_table(["Config", "Metric", "v1", "v2"], body) + [""]
+    return out
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     FIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -500,6 +806,8 @@ def main() -> int:
     if not gsum_all:
         L += ["_Generation evaluation not run yet._", ""]
     L += latency_section()
+    L += cross_judge_section() + false_refusal_section("gemini")
+    L += reranker_bench_section() + router_before_after_section() + statistics_section()
     L += qualitative_section("gemini") + failure_section("gemini")
     (RESULTS_DIR / "REPORT.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("Wrote", RESULTS_DIR / "REPORT.md")
