@@ -210,15 +210,28 @@ Edit `eval/testset.json` (fix items, set `"verified": true`), then:
 
 ```bash
 python -m eval.make_testset_review                       # regenerate the review sheet
-python -m eval.run_retrieval_eval --all-ablations        # ~2 h on CPU first time; rerank scores cached
+python -m eval.run_retrieval_eval --all-ablations        # ~20 min on CPU; rerank scores cached
+# copy reranker_threshold / dense_threshold from eval/results/gate_choice.json into config.yaml
 python -m eval.run_generation_eval --provider gemini --configs best,baseline,no_hybrid,no_reranker,no_routing
-python -m eval.make_report
+python -m eval.run_cross_judge --judge gemini            # cross-judge (frozen best answers)
+python -m eval.run_cross_judge --judge groq              # waits for Groq's daily token window
+python -m eval.measure_latency                           # real latency (warm, no cache)
+python -m eval.bench_reranker                            # optional: speed/quality benchmark
+python -m eval.make_report && python -m eval.make_bonus_report
 ```
 
-Cached LLM answers (`eval/results/raw/gen_<config>_gemini.jsonl`) are keyed by question id:
-delete the file of a config (or the lines of edited questions) to regenerate them; judgements
-are recomputed only where missing. If the gold set changes the gate calibration, copy the new
-values from `eval/results/gate_choice.json` into `config.yaml`.
+- Answers are cached per question in `eval/results/raw/gen_<config>_<provider>.jsonl` and are
+  regenerated automatically when the settings that produced them changed (config snapshot);
+  edited questions keep their id, so delete their lines to force a new answer. Judgements are
+  recomputed only where missing.
+- The free tiers limit throughput (Gemini flash-lite 500 requests/day ≈ 4 configurations;
+  Groq 200k tokens/day): every command resumes where it stopped.
+- The cross-judge answer sets are frozen in `eval/results/raw/crossjudge/` (delete them to
+  freeze new `best` answers). The Groq answer set was produced with the previous settings:
+  `RAG_RETRIEVAL__ROUTER_VERSION=1 RAG_RETRIEVAL__FUSED_TOP_N=30
+  RAG_RERANKER__MODEL=BAAI/bge-reranker-v2-m3 RAG_RERANKER__MAX_LENGTH=1024
+  RAG_GATE__RERANKER_THRESHOLD=0.45 python -m eval.run_generation_eval --provider groq
+  --configs best --no-judge`.
 <!-- RESULTS:END -->
 
 ## Bonus experiments
