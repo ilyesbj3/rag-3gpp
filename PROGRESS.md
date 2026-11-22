@@ -229,6 +229,35 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
    6 guards; v1 got 5/12 cross, v2 12/12). `retrieval.router_version` (1|2) keeps v1
    reproducible (v1 reproduces all 30 stored routes). Eval re-run pending (with the new
    reranker default).
+4. Reranker latency — done. Benchmark (`eval/results/reranker_bench.csv`, router v2, MRR on
+   27 questions, rerank seconds per answer on this CPU):
+
+| Reranker | top_n | max_len | MRR | R@5 | rerank s |
+|---|---|---|---|---|---|
+| v2-m3 | 30 | 1024 (old default) | 0.734 | 0.852 | 43.8 |
+| v2-m3 | 15 | 512 | 0.754 | 0.852 | 12.8 |
+| v2-m3 | 20 | 1024 | 0.756 | 0.852 | 27.9 |
+| base | 15 | 512 (**new default**) | 0.747 | 0.815 | **3.9** |
+| base | 30 | 512 | 0.727 | 0.852 | 7.6 |
+
+   Rule "fastest with MRR ≥ old − 0.02": v2-m3 alone could not get under 10 s, so
+   bge-reranker-base (allowed by the task) was benchmarked and chosen: 15 candidates, 512
+   tokens. Trade-offs: R@5 −1 question; not multilingual (French bonus used v2-m3); gate
+   recalibrated to **0.10** (base scores: OOC 0.001/0.05/0.266 vs in-corpus min 0.145 → the
+   OSPF question cannot be separated at the gate without a false refusal; 2/3 refused by the
+   gate, the third must be refused by the LLM).
+   Retrieval re-run (router v2 + new reranker): best MRR 0.747, no_hybrid 0.817,
+   reranker_only 0.785, no_routing 0.691; non-reranker configs unchanged.
+5. Router v2 on the eval set (same reranker, only `router_version` differs): exact route
+   0.741 → 0.778, cross questions routed to both specs 1/7 → 2/7; retrieval metrics
+   identical (the extra both-spec route did not add a gold hit in the top 10). Cross-spec
+   retrieval remains the main failure mode.
+- Groq free tier also has a daily token cap (200k tokens/day per model, rolling): Groq
+  answered 24/30 (6 prompts > 8k tokens are rejected outright, HTTP 413); the Groq-judge
+  pass trickles as the daily window frees up (`run_cross_judge --max-hours`).
+- Gemini daily quota (500/day flash-lite) exhausted until ~09:00; post-reset chain queued
+  (Rel-17 with new defaults, Gemini judge on Groq answers, 5-config generation re-run,
+  latency, reports).
 6. False-refusal breakdown — done in REPORT.md: all 15 false refusals across the 5
    generation configs were LLM refusals (gate scores 0.63–0.995); the gate refused none.
 7. Statistical caution — done in REPORT.md (paired bootstrap, n = 27, 1 question = 0.037).
