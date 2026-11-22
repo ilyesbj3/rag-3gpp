@@ -75,6 +75,7 @@ class RetrievalConfig(BaseModel):
     use_hybrid: bool = True
     use_reranker: bool = True
     use_routing: bool = True
+    router_version: int = 2  # 1 = original rules, 2 = mixed-signal rules (see router.py)
     translate_query_for_bm25: bool = False  # bonus: non-English questions -> English for BM25
 
 

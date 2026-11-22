@@ -19,7 +19,7 @@ from src.generation.citation_check import check_citations
 from src.generation.llm import REFUSAL, build_llm
 from src.generation.prompts import build_user_prompt, system_prompt_for
 from src.retrieval.hybrid import fuse, select_final
-from src.retrieval.router import ROUTER_VERSION, route
+from src.retrieval.router import route
 from src.schemas import Answer, Chunk, RetrievedChunk, RouteDecision
 
 log = logging.getLogger(__name__)
@@ -143,16 +143,59 @@ class RAGPipeline:
             "reranker_threshold": s.gate.reranker_threshold,
             "dense_threshold": s.gate.dense_threshold,
             "llm_provider": s.llm.provider,
-            "router_version": ROUTER_VERSION,
+            "router_version": s.retrieval.router_version,
             "reranker_max_length": s.reranker.max_length,
         }
+
+    def with_overrides(
+        self, overrides: dict[str, Any] | None = None, llm: LLM | None = None
+    ) -> RAGPipeline:
+        """A per-request pipeline: same loaded components, different flags. Never mutates
+        this pipeline's settings, so concurrent requests cannot interfere."""
+        return RAGPipeline(
+            self.settings,
+            llm=llm or self._llm,
+            overrides=overrides,
+            dense=self.dense,
+            sparse=self.sparse,
+            embed_fn=self._embed_fn,
+            rerank_fn=self._rerank_fn,
+        )
+
+    def gate_threshold(self) -> tuple[float, str]:
+        """(threshold, kind) of the active score gate."""
+        g = self.settings.gate
+        if self.settings.retrieval.use_reranker:
+            return g.reranker_threshold, "reranker"
+        return g.dense_threshold, "dense"
+
+    def warmup(self) -> float:
+        """Load and exercise the embedder and reranker once; returns the time taken (s)."""
+        t0 = time.perf_counter()
+        _ = self.dense, self.sparse
+        self.embed("warm-up")
+        if self.settings.retrieval.use_reranker:
+            from src.schemas import Chunk
+
+            dummy = Chunk(
+                chunk_id="warmup:0:0",
+                spec="TS 23.501",
+                spec_short="23.501",
+                version="",
+                release="",
+                section="0",
+                title="warm-up",
+                text="warm-up",
+            )
+            self.rerank("warm-up", [RetrievedChunk(chunk=dummy)])
+        return time.perf_counter() - t0
 
     # ------------------------------------------------------------------ retrieval
     def retrieve_full(self, question: str) -> RetrievalResult:
         r = self.settings.retrieval
         t: dict[str, float] = {}
         t0 = time.perf_counter()
-        decision = route(question, use_routing=r.use_routing)
+        decision = route(question, use_routing=r.use_routing, version=r.router_version)
         specs = decision.specs if r.use_routing else None
         t["route"] = time.perf_counter() - t0
 
@@ -224,6 +267,7 @@ class RAGPipeline:
                 refused=True,
                 timings=timings,
                 warnings=["Refused by retrieval score gate (LLM not called)"],
+                below_gate=res.candidates[:3],
                 **base,
             )
 

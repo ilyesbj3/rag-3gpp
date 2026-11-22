@@ -1,4 +1,8 @@
-"""Cross-encoder reranking with bge-reranker-v2-m3 (sigmoid scores in [0, 1])."""
+"""Cross-encoder reranking (bge-reranker-v2-m3 by default, sigmoid scores in [0, 1]).
+
+The model is loaded once per model name; `max_length` (truncation of each query+chunk pair)
+is applied per call, so changing it never loads a second copy of the model.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +17,7 @@ BATCH_SIZE = 16
 
 
 @lru_cache(maxsize=2)
-def get_reranker(model_name: str, max_length: int = 1024):
+def get_reranker(model_name: str):
     import torch
     from sentence_transformers import CrossEncoder
 
@@ -21,11 +25,7 @@ def get_reranker(model_name: str, max_length: int = 1024):
     kwargs = {"torch_dtype": torch.float16} if device == "cuda" else {}
     log.info("Loading reranker %s on %s", model_name, device)
     return CrossEncoder(
-        model_name,
-        max_length=max_length,
-        device=device,
-        activation_fn=torch.nn.Sigmoid(),
-        model_kwargs=kwargs,
+        model_name, device=device, activation_fn=torch.nn.Sigmoid(), model_kwargs=kwargs
     )
 
 
@@ -35,7 +35,8 @@ def rerank(
     """Score (query, chunk text) pairs and sort candidates by rerank score (desc)."""
     if not candidates:
         return []
-    model = get_reranker(model_name, max_length)
+    model = get_reranker(model_name)
+    model.max_seq_length = max_length
     pairs = [(query, rc.chunk.text) for rc in candidates]
     scores = model.predict(pairs, batch_size=BATCH_SIZE, show_progress_bar=False)
     for rc, s in zip(candidates, scores, strict=True):

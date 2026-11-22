@@ -58,6 +58,8 @@ class CachedReranker:
 
     def key(self, q: str, rc: RetrievedChunk) -> str:
         base = f"{self.model}||{q}||{rc.chunk.chunk_id}"
+        if self.max_length != 1024:  # scores depend on the truncation length
+            base += f"||ml{self.max_length}"
         if VARIANT:  # other corpora reuse chunk ids with different text (e.g. Rel-17)
             return f"{base}||{hashlib.sha1(rc.chunk.text.encode()).hexdigest()[:12]}"
         return base

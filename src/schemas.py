@@ -72,6 +72,7 @@ class Answer(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     sources: list[RetrievedChunk] = Field(default_factory=list)
+    below_gate: list[RetrievedChunk] = Field(default_factory=list)  # gate refusals only
     route: RouteDecision | None = None
     gate_score: float | None = None
     llm_provider: str | None = None

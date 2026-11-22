@@ -60,8 +60,7 @@ CROSS_LABELED = [
     "REGISTRATION ACCEPT message?",
     "How is the user plane reactivated with the service request procedure, and which messages "
     "are exchanged?",
-    "How are home-routed roaming PDU sessions handled and which 5GSM cause values can be "
-    "returned?",
+    "How are home-routed roaming PDU sessions handled and which 5GSM cause values can be returned?",
     "Describe UE configuration update: the role of the AMF and the CONFIGURATION UPDATE "
     "COMMAND message.",
 ]
@@ -86,3 +85,9 @@ SINGLE_GUARDS = [
 @pytest.mark.parametrize("question,expected", SINGLE_GUARDS)
 def test_single_spec_guards(question, expected):
     assert route(question).specs == expected
+
+
+def test_router_version_1_keeps_original_rules():
+    q = "Describe the PDU session establishment procedure and the 5GSM messages involved."
+    assert route(q, version=1).specs == {TS24}  # original rules: NAS words dominate
+    assert route(q, version=2).specs == BOTH
