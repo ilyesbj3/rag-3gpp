@@ -1,6 +1,6 @@
 {
- "date": "2026-11-22 03:00 UTC",
- "git_commit": "f43f5f0",
+ "date": "2026-11-22 09:31 UTC",
+ "git_commit": "2517911",
  "corpus": {
   "TS 23.501": "18.12.0",
   "TS 24.501": "18.14.0"
@@ -13,6 +13,6 @@
  "configs": [
   "best"
  ],
- "stopped": "best/x-05: All LLM providers failed:",
+ "stopped": null,
  "judge": "LLM-as-judge, rubric 0/0.5/1 (eval/metrics.py JUDGE_TEMPLATE)"
 }
