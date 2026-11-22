@@ -25,9 +25,22 @@ ROOT = Path(__file__).resolve().parents[1]
 # Corpus variants (bonus experiments, e.g. `configs/rel17.yaml`) are selected with the
 # RAG_CONFIG environment variable; each variant gets its own processed/ and index/ folders
 # (named after the config file) so the main index is never overwritten.
+# A profile that only changes settings (e.g. `configs/fast.yaml`) declares `data_variant: ""`
+# to reuse the main index.
 _CONFIG_ENV = os.getenv("RAG_CONFIG", "")
 CONFIG_PATH = ROOT / _CONFIG_ENV if _CONFIG_ENV else ROOT / "config.yaml"
-VARIANT = Path(_CONFIG_ENV).stem if _CONFIG_ENV else ""
+
+
+def _data_variant() -> str:
+    if not _CONFIG_ENV:
+        return ""
+    import yaml
+
+    declared = (yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}).get("data_variant")
+    return Path(_CONFIG_ENV).stem if declared is None else str(declared)
+
+
+VARIANT = _data_variant()
 DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed" / VARIANT if VARIANT else DATA_DIR / "processed"
@@ -76,6 +89,11 @@ class RetrievalConfig(BaseModel):
     use_reranker: bool = True
     use_routing: bool = True
     router_version: int = 2  # 1 = original rules, 2 = mixed-signal rules (see router.py)
+    # hard = filter the search to the routed spec(s); soft = search both specs and multiply
+    # the RRF contribution of the routed spec's chunks by `soft_routing_weight`.
+    routing_mode: Literal["hard", "soft"] = "hard"
+    soft_routing_weight: float = 1.5
+    bm25_weight: float = 1.0  # weight of the BM25 list in RRF (dense list weight = 1)
     translate_query_for_bm25: bool = False  # bonus: non-English questions -> English for BM25
 
 
@@ -93,6 +111,7 @@ class LLMConfig(BaseModel):
     provider: Literal["auto", "gemini", "groq", "grok"] = "auto"
     temperature: float = 0.0
     max_tokens: int = 1024
+    prompt_version: int = 2  # system prompt rules (src/generation/prompts.py SYSTEM_PROMPTS)
 
 
 class Settings(BaseSettings):
@@ -114,6 +133,7 @@ class Settings(BaseSettings):
     reranker: RerankerConfig = RerankerConfig()
     llm: LLMConfig = LLMConfig()
     seed: int = 42
+    data_variant: str | None = None  # see _data_variant()
 
     @classmethod
     def settings_customise_sources(

@@ -81,3 +81,27 @@ def test_adjacent_parts_are_merged_and_slot_refilled():
 def test_non_adjacent_parts_stay_separate():
     out = merge_parts(ranked([mk("24.501", "5.5", 0), mk("24.501", "5.5", 3)]))
     assert len(out) == 2
+
+
+def test_weighted_rrf_hand_computed():
+    s = rrf([["a", "b"], ["b", "c"]], k=60, weights=[1.0, 0.5])
+    assert s["a"] == pytest.approx(1 / 61)
+    assert s["b"] == pytest.approx(1 / 62 + 0.5 / 61)
+    assert s["c"] == pytest.approx(0.5 / 62)
+
+
+def test_bm25_weight_changes_fused_order():
+    a, b = mk("24.501", "1"), mk("24.501", "2")
+    dense, sparse = [(a, 0.9), (b, 0.8)], [(b, 7.0)]
+    full = fuse(dense, sparse, k=60, top_n=10)
+    assert full[0].chunk.chunk_id == b.chunk_id  # in both lists
+    # b: 1/62 + 0.01/61 < a: 1/61
+    low = fuse(dense, sparse, k=60, top_n=10, bm25_weight=0.01)
+    assert low[0].chunk.chunk_id == a.chunk_id
+
+
+def test_spec_boost_promotes_routed_spec():
+    a, b = mk("23.501", "1"), mk("24.501", "2")
+    out = fuse([(a, 0.9), (b, 0.8)], None, k=60, top_n=10, spec_boost={"TS 24.501": 1.5})
+    assert [r.chunk.chunk_id for r in out] == [b.chunk_id, a.chunk_id]
+    assert out[0].rrf_score == pytest.approx(1.5 / 62)

@@ -22,7 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from eval.configs import CONFIGS, describe, overrides_for
+from eval.configs import CONFIGS, describe, overrides_for, parse_sets
 from eval.metrics import (
     K_VALUES,
     PRELIMINARY,
@@ -238,6 +238,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tag", default="", help="suffix for output files (bonus experiments)")
     ap.add_argument("--embedding-model", help="override embedding.model (index must exist)")
     ap.add_argument(
+        "--set",
+        action="append",
+        metavar="KEY=VALUE",
+        help="settings override, e.g. --set retrieval.routing_mode=soft (repeatable)",
+    )
+    ap.add_argument(
         "--allow-missing-gold",
         action="store_true",
         help="continue when gold sections are absent (other releases)",
@@ -253,8 +259,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.translate_bm25:
         EXTRA_RETRIEVAL["translate_query_for_bm25"] = True
 
-    overrides = {"embedding": {"model": args.embedding_model}} if args.embedding_model else None
-    settings = load_settings(overrides)
+    overrides = parse_sets(args.set)
+    if args.embedding_model:
+        overrides["embedding"] = {"model": args.embedding_model}
+    settings = load_settings(overrides or None)
     items = load_testset(args.testset)
     problems = validate_gold(items, load_chunks())
     if problems:

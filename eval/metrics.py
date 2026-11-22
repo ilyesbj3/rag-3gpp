@@ -206,6 +206,19 @@ def run_metadata(settings: Settings, extra: dict[str, Any] | None = None) -> dic
         "corpus": {s.id: s.version for s in settings.corpus.specs},
         "embedding_model": settings.embedding.model,
         "reranker_model": settings.reranker.model,
+        "reranker_max_length": settings.reranker.max_length,
+        "retrieval": {
+            k: getattr(settings.retrieval, k)
+            for k in (
+                "fused_top_n",
+                "routing_mode",
+                "soft_routing_weight",
+                "bm25_weight",
+                "router_version",
+            )
+        },
+        "gate": settings.gate.model_dump(),
+        "prompt_version": settings.llm.prompt_version,
         "status": None,
         **(extra or {}),
     }

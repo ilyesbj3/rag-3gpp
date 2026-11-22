@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from eval.configs import CONFIGS, describe, overrides_for
+from eval.configs import CONFIGS, describe, overrides_for, parse_sets
 from eval.metrics import (
     PRELIMINARY,
     RAW_DIR,
@@ -83,6 +83,10 @@ SNAPSHOT_KEYS = {  # key -> value assumed for rows cached before the key existed
     "dense_threshold": None,
     "router_version": 1,
     "reranker_max_length": 1024,
+    "routing_mode": "hard",
+    "soft_routing_weight": 1.5,
+    "bm25_weight": 1.0,
+    "prompt_version": 1,
 }
 
 
@@ -232,13 +236,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--testset", type=Path, default=TESTSET_PATH)
     ap.add_argument("--tag", default="", help="suffix for output files (bonus experiments)")
     ap.add_argument("--embedding-model", help="override embedding.model (index must exist)")
+    ap.add_argument(
+        "--set",
+        action="append",
+        metavar="KEY=VALUE",
+        help="settings override, e.g. --set retrieval.routing_mode=soft (repeatable)",
+    )
     args = ap.parse_args(argv)
     names = list(CONFIGS) if args.configs == "all" else args.configs.split(",")
 
     global SFX
     SFX = f"_{args.tag}" if args.tag else ""
-    emb = {"embedding": {"model": args.embedding_model}} if args.embedding_model else None
-    settings = load_settings(emb)
+    overrides = parse_sets(args.set)
+    if args.embedding_model:
+        overrides["embedding"] = {"model": args.embedding_model}
+    settings = load_settings(overrides or None)
     items = load_testset(args.testset)
     items = items[: args.limit] if args.limit else items
     base = RAGPipeline(settings)

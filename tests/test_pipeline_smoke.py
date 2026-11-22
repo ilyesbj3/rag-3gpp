@@ -180,8 +180,44 @@ def test_generation_cache_staleness():
         "dense_threshold": 0.25,
         "router_version": 2,
         "reranker_max_length": 1024,
+        "routing_mode": "hard",
+        "soft_routing_weight": 1.5,
+        "bm25_weight": 1.0,
+        "prompt_version": 2,
     }
     old = {k: v for k, v in current.items() if k not in ("router_version", "reranker_max_length")}
     assert stale({"answer": {"config_snapshot": old}}, current)  # cached before router v2
     assert not stale({"answer": {"config_snapshot": dict(current)}}, current)
     assert stale({"answer": {"config_snapshot": {**current, "fused_top_n": 15}}}, current)
+    assert stale({"answer": {"config_snapshot": {**current, "prompt_version": 1}}}, current)
+
+
+def test_soft_routing_searches_both_specs():
+    llm = FakeLLM(lambda u: "x [TS 24.501 §A.1].")
+    hard = make_pipeline(llm, use_reranker=False).retrieve_full("What does cause #9 mean in 5GMM?")
+    assert {c.chunk.spec for c in hard.candidates} == {"TS 24.501"}
+    soft = make_pipeline(llm, use_reranker=False, routing_mode="soft").retrieve_full(
+        "What does cause #9 mean in 5GMM?"
+    )
+    assert soft.route.specs == {"TS 24.501"}
+    assert {c.chunk.spec for c in soft.candidates} == {"TS 23.501", "TS 24.501"}
+    assert soft.candidates[0].chunk.section == "A.1"
+
+
+def test_prompt_version_selects_rules():
+    from src.generation.prompts import SYSTEM_PROMPTS
+
+    seen = []
+
+    class Spy(FakeLLM):
+        def generate(self, system, user):
+            seen.append(system)
+            return super().generate(system, user)
+
+    for v in (1, 2):
+        p = make_pipeline(Spy(lambda u: "x [TS 23.501 §6.2.2]."))
+        p = p.with_overrides({"llm": {"prompt_version": v}})
+        ans = p.answer("What is the role of the SMF?")
+        assert ans.config_snapshot["prompt_version"] == v
+    assert seen == [SYSTEM_PROMPTS[1], SYSTEM_PROMPTS[2]]
+    assert "Refuse only when none of the sources is relevant" in SYSTEM_PROMPTS[2]

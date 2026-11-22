@@ -7,12 +7,18 @@ from collections.abc import Sequence
 from src.schemas import Chunk, RetrievedChunk
 
 
-def rrf(ranked_lists: Sequence[Sequence[str]], k: int = 60) -> dict[str, float]:
-    """Reciprocal Rank Fusion: score(d) = sum over lists of 1 / (k + rank), ranks from 1."""
+def rrf(
+    ranked_lists: Sequence[Sequence[str]],
+    k: int = 60,
+    weights: Sequence[float] | None = None,
+) -> dict[str, float]:
+    """(Weighted) Reciprocal Rank Fusion: score(d) = sum over lists of w / (k + rank),
+    ranks from 1; every weight is 1 when `weights` is None."""
+    weights = weights or [1.0] * len(ranked_lists)
     scores: dict[str, float] = {}
-    for lst in ranked_lists:
+    for lst, w in zip(ranked_lists, weights, strict=True):
         for rank, doc_id in enumerate(lst, start=1):
-            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)
+            scores[doc_id] = scores.get(doc_id, 0.0) + w / (k + rank)
     return scores
 
 
@@ -21,22 +27,28 @@ def fuse(
     sparse: list[tuple[Chunk, float]] | None,
     k: int,
     top_n: int,
+    bm25_weight: float = 1.0,
+    spec_boost: dict[str, float] | None = None,
 ) -> list[RetrievedChunk]:
     """Fuse dense and (optional) sparse results, keeping per-list provenance.
 
-    Without sparse results the dense order is kept (RRF of one list is monotonic anyway)."""
+    `bm25_weight` weights the sparse list in RRF. `spec_boost` (soft routing) multiplies the
+    fused score of chunks from the given specs. Without sparse results and boost the dense
+    order is kept (RRF of one list is monotonic anyway)."""
     by_id: dict[str, RetrievedChunk] = {}
     for rank, (c, s) in enumerate(dense, start=1):
         by_id[c.chunk_id] = RetrievedChunk(chunk=c, dense_rank=rank, dense_score=s)
     for rank, (c, s) in enumerate(sparse or [], start=1):
         rc = by_id.setdefault(c.chunk_id, RetrievedChunk(chunk=c))
         rc.bm25_rank, rc.bm25_score = rank, s
-    lists = [[c.chunk_id for c, _ in dense]]
+    lists, weights = [[c.chunk_id for c, _ in dense]], [1.0]
     if sparse is not None:
         lists.append([c.chunk_id for c, _ in sparse])
-    scores = rrf(lists, k)
+        weights.append(bm25_weight)
+    scores = rrf(lists, k, weights)
     for doc_id, rc in by_id.items():
-        rc.rrf_score = scores.get(doc_id, 0.0)
+        boost = (spec_boost or {}).get(rc.chunk.spec, 1.0)
+        rc.rrf_score = scores.get(doc_id, 0.0) * boost
     ordered = sorted(by_id.values(), key=lambda r: (-(r.rrf_score or 0.0), r.chunk.chunk_id))
     return ordered[:top_n]
 

@@ -145,6 +145,10 @@ class RAGPipeline:
             "llm_provider": s.llm.provider,
             "router_version": s.retrieval.router_version,
             "reranker_max_length": s.reranker.max_length,
+            "routing_mode": s.retrieval.routing_mode,
+            "soft_routing_weight": s.retrieval.soft_routing_weight,
+            "bm25_weight": s.retrieval.bm25_weight,
+            "prompt_version": s.llm.prompt_version,
         }
 
     def with_overrides(
@@ -203,7 +207,11 @@ class RAGPipeline:
         t: dict[str, float] = {}
         t0 = time.perf_counter()
         decision = route(question, use_routing=r.use_routing, version=r.router_version)
-        specs = decision.specs if r.use_routing else None
+        specs = decision.specs if r.use_routing and r.routing_mode == "hard" else None
+        boost = None
+        n_specs = len(self.settings.corpus.specs)
+        if r.use_routing and r.routing_mode == "soft" and len(decision.specs) < n_specs:
+            boost = {sp: r.soft_routing_weight for sp in decision.specs}
         t["route"] = time.perf_counter() - t0
 
         t0 = time.perf_counter()
@@ -217,7 +225,7 @@ class RAGPipeline:
             sparse_hits = self.sparse.search(bm25_query, r.sparse_top_n, specs)
             t["sparse"] = time.perf_counter() - t0
 
-        cands = fuse(dense_hits, sparse_hits, r.rrf_k, r.fused_top_n)
+        cands = fuse(dense_hits, sparse_hits, r.rrf_k, r.fused_top_n, r.bm25_weight, boost)
         if r.use_reranker:
             t0 = time.perf_counter()
             cands = self.rerank(question, cands)
@@ -280,7 +288,8 @@ class RAGPipeline:
 
         t0 = time.perf_counter()
         resp = self.llm.generate(
-            system_prompt_for(self.settings.corpus.specs), build_user_prompt(question, res.final)
+            system_prompt_for(self.settings.corpus.specs, self.settings.llm.prompt_version),
+            build_user_prompt(question, res.final),
         )
         t_llm = time.perf_counter() - t0
 

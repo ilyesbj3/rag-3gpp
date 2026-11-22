@@ -26,3 +26,21 @@ def describe(name: str) -> str:
     h, r, t = CONFIGS[name]
     on = lambda b: "on" if b else "off"  # noqa: E731
     return f"hybrid {on(h)}, reranker {on(r)}, routing {on(t)}"
+
+
+def parse_sets(pairs: list[str] | None) -> dict[str, Any]:
+    """`["retrieval.routing_mode=soft", "reranker.max_length=512"]` -> nested overrides.
+    Values are parsed as YAML scalars (numbers, booleans, strings)."""
+    import yaml
+
+    out: dict[str, Any] = {}
+    for pair in pairs or []:
+        key, _, raw = pair.partition("=")
+        if not raw:
+            raise ValueError(f"--set expects key=value, got {pair!r}")
+        *parents, leaf = key.strip().split(".")
+        node = out
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = yaml.safe_load(raw)
+    return out
