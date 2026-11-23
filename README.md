@@ -21,7 +21,7 @@ flowchart LR
     R --> S[Sparse: BM25 + telecom tokenizer]
     D --> F[RRF fusion]
     S --> F
-    F --> X[Reranker<br/>bge-reranker-base]
+    F --> X[Reranker<br/>bge-reranker-v2-m3]
     X --> G{Score gate}
     G -- too low --> N[Refusal sentence]
     G -- ok --> K[Top-k + per-spec quota]
@@ -44,9 +44,9 @@ Pinned in `config.yaml`; provenance (URL, download date, SHA-256, size, docx nam
 
 - Python **3.11** (3.12 should also work; 3.14 is not recommended with torch).
 - ~8 GB RAM; CPU only is fine (CUDA/MPS used automatically if present).
-- ~4 GB disk for the Hugging Face models (bge-m3 2.3 GB and bge-reranker-base 1.1 GB,
-  downloaded automatically on first use; bge-reranker-v2-m3, 2.3 GB, only if you switch back
-  to the multilingual reranker).
+- ~6 GB disk for the Hugging Face models (bge-m3 2.3 GB and bge-reranker-v2-m3 2.3 GB,
+  downloaded automatically on first use; bge-reranker-base, 1.1 GB, only for the fast demo
+  profile `configs/fast.yaml`).
 - Docker (optional, default vector store) — otherwise Qdrant's local on-disk mode is used.
 - API keys: Google Gemini (primary LLM); Groq (free tier, first fallback) and/or xAI Grok
   (second fallback). One key is enough to run.
@@ -153,17 +153,17 @@ false-refusal breakdown, statistical caution, failure analysis). Bonuses:
 [`eval/results/BONUS.md`](eval/results/BONUS.md).
 
 **Retrieval** — 27 in-corpus questions, top-10 ranking after fusion / reranking; a hit is the
-gold clause or one of its sub-clauses. Current defaults: router v2, `bge-reranker-base`, 15
-fused candidates, 512 tokens.
+gold clause or one of its sub-clauses. Current defaults: router v2, soft routing (weight 1.5),
+BM25 weight 0.5 in RRF, `bge-reranker-v2-m3`, 15 fused candidates, 512 tokens.
 
 | Config | Hybrid | Reranker | Routing | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|---|---|---|
-| best | ✓ | ✓ | ✓ | 0.704 | 0.815 | 0.852 | 0.747 |
-| no_hybrid | ✗ | ✓ | ✓ | 0.778 | 0.852 | 0.926 | 0.817 |
-| no_reranker | ✓ | ✗ | ✓ | 0.481 | 0.815 | 0.889 | 0.622 |
-| no_routing | ✓ | ✓ | ✗ | 0.593 | 0.852 | 0.889 | 0.691 |
-| hybrid_only | ✓ | ✗ | ✗ | 0.407 | 0.778 | 0.889 | 0.574 |
-| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.889 | 0.926 | 0.785 |
+| best | ✓ | ✓ | ✓ | 0.741 | 0.889 | 0.926 | 0.807 |
+| no_hybrid | ✗ | ✓ | ✓ | 0.741 | 0.889 | 0.926 | 0.807 |
+| no_reranker | ✓ | ✗ | ✓ | 0.481 | 0.889 | 0.889 | 0.648 |
+| no_routing | ✓ | ✓ | ✗ | 0.667 | 0.889 | 0.926 | 0.770 |
+| hybrid_only | ✓ | ✗ | ✗ | 0.481 | 0.852 | 0.889 | 0.627 |
+| reranker_only | ✗ | ✓ | ✗ | 0.704 | 0.889 | 0.926 | 0.788 |
 | routing_only | ✗ | ✗ | ✓ | 0.630 | 0.889 | 0.926 | 0.730 |
 | baseline | ✗ | ✗ | ✗ | 0.556 | 0.889 | 0.926 | 0.677 |
 
@@ -172,42 +172,39 @@ Faithfulness and correctness are judged **by the same model that wrote the answe
 cross-judging table in `eval/results/REPORT.md` (Gemini and Groq answers × Gemini and Groq
 judges) is the check for self-preference bias.
 
-| Config | Settings | Faithfulness | Correctness | Citation acc. | Gold cited | Refusal F1 | False refusals |
-|---|---|---|---|---|---|---|---|
-| best | current | 1.00 | 0.80 | 0.97 | 0.74 | 0.50 | 6 |
-| baseline | current | 1.00 | 0.82 | 0.99 | 0.78 | 0.55 | 5 |
-| no_hybrid | current | 1.00 | 0.83 | 1.00 | 0.74 | 0.60 | 4 |
-| best | previous | 0.97 | 0.88 | 0.98 | 0.81 | 0.75 | 2 |
-| baseline | previous | 1.00 | 0.83 | 0.99 | 0.78 | 0.60 | 4 |
-| no_hybrid | previous | 1.00 | 0.92 | 0.97 | 0.93 | 0.75 | 2 |
-| no_reranker | previous | 1.00 | 0.77 | 0.97 | 0.67 | 0.50 | 6 |
-| no_routing | previous | 0.97 | 0.92 | 0.97 | 0.89 | 0.86 | 1 |
+| Config | Faithfulness | Correctness | Citation acc. | Gold cited | Refusal F1 | False refusals |
+|---|---|---|---|---|---|---|
+| **best** | 1.00 | **0.97** | 0.98 | 0.89 | **1.00** | 0 |
+| baseline | 1.00 | 0.90 | 0.99 | 0.81 | 0.86 | 1 |
+| no_hybrid | 1.00 | 0.95 | 0.98 | 0.89 | 1.00 | 0 |
+| no_reranker | 0.97 | 0.90 | 0.94 | 0.85 | 0.86 | 1 |
+| no_routing | 1.00 | 0.95 | 0.98 | 0.89 | 1.00 | 0 |
 
-"Previous" = router v1, `bge-reranker-v2-m3`, 30 candidates, 1,024 tokens (complete run);
-`no_reranker` / `no_routing` with the current settings are pending the next Gemini quota
-window. `baseline` is unaffected by the changes, so its two rows (0.82 vs 0.83) show the
-run-to-run noise of LLM + judge.
+Final defaults: `bge-reranker-v2-m3` (15 candidates, 512 tokens, gate 0.40), soft routing,
+BM25 weight 0.5, router v2, prompt v2; all five configs generated and judged in one run
+(2026-11-23), no provider fallback. Earlier rounds (previous defaults) are kept in REPORT.md.
 
 What the numbers say:
-- **The reranker matters most for ranking**: with all other components on it adds MRR +0.13
-  (95% paired-bootstrap CI [+0.02, +0.24]); with dense-only retrieval +0.11 (CI touches 0). It also decides refusals: all 3 out-of-corpus questions are
-  refused in every configuration, before generation when the reranker score is below the
-  calibrated gate.
-- **BM25 fusion hurts when the reranker is on** (MRR −0.07, CI [−0.17, −0.00]): BM25 candidates
-  take slots in the small candidate pool sent to the reranker. Dense + reranker
-  (`no_hybrid`) is the best retrieval setting.
-- **Speed vs quality**: the CPU benchmark replaced `bge-reranker-v2-m3` (30 candidates, 1,024
-  tokens) by `bge-reranker-base` (15, 512): MRR 0.734 → 0.747, latency **48 s → 7.6 s** per
-  answer. Answer correctness of `best` moved 0.88 → 0.80: five questions lost a key chunk from
-  the 6 sources and were refused by the LLM, two improved. The paired change (−0.08, CI
-  [−0.23, +0.05]) is not established on 30 questions, but the mechanism is real; set
-  `reranker.model: BAAI/bge-reranker-v2-m3` back if answer quality matters more than speed.
-- **Simple questions are solved** (R@5 = 1.0 for both specs with the reranker); **cross-spec
-  questions remain the weak spot**: router v2 routes 2/7 of them to both specs (v1: 1/7)
-  without changing recall, and all false refusals come from the LLM, not the gate, mostly on
-  cross questions.
-- With n = 27, one question = 0.037 of recall: most other differences are within noise (see
-  "Statistical caution" in the report).
+- **The reranker is the component that matters**: it is the only robust retrieval gain (MRR
+  +0.16 with everything else on, 95% paired-bootstrap CI [+0.06, +0.26]), and removing it
+  costs the most in generation (correctness 0.97 → 0.90, citation accuracy 0.98 → 0.94, one
+  false refusal, one ungrounded answer).
+- **Refusals are clean**: all 3 out-of-corpus questions are refused by the score gate before
+  the LLM is called (reranker score ≤ 0.13 vs ≥ 0.66 for in-corpus questions); the full
+  pipeline has no false refusal. Prompt v2 (answer the covered part, refuse only when no
+  source is relevant) together with the v2-m3 reranker took `best` from 6 false refusals to 0.
+- **Faithfulness 1.00 and citation accuracy 0.98** in the best config: every factual sentence
+  is grounded, and the citation check removes the rare citation to a non-retrieved section.
+- **Hybrid and routing**: with the reranker and soft routing on, removing BM25 or routing
+  costs one question each (0.97 → 0.95), which is within noise. They are kept because BM25
+  catches exact identifiers and routing helps cross-spec questions reach both specs.
+- **Simple questions are solved** (R@5 = 1.0 for both specs); **cross-spec questions remain
+  the weak spot** (R@5 0.57, the 2 answers not judged fully correct are cross questions).
+- **Speed**: about 13 s of CPU reranking per answer with v2-m3; the fast profile
+  (`configs/fast.yaml`, `bge-reranker-base`) brings end-to-end latency to about 7.6 s for a
+  live demo, at some cost in answer quality.
+- With n = 27 in-corpus questions, one question = 0.037 of recall: read small differences as
+  noise (see "Statistical caution" in the report).
 
 ### Re-running the evaluation after validating the test set
 
@@ -263,11 +260,11 @@ Corpus variants are selected with `RAG_CONFIG` and get their own `data/processed
 | Contextual header in every chunk (`[TS 24.501 §5.5.1.2.4 Title \| parents…]`) | both BM25 and the embedder see the spec, clause number and parent titles |
 | bge-m3 dense embeddings | strong multilingual retriever (Chen et al. 2024), 8k context, enables French questions |
 | BM25 with a telecom tokenizer | exact identifiers (`T3510`, `cause #9`, `S-NSSAI`, `5.5.1.2.4`) are where dense models are weakest |
-| Reciprocal Rank Fusion (k = 60) | parameter-free fusion of heterogeneous scores |
-| Cross-encoder reranker + score gate | `bge-reranker-base` reorders the 15 best fused candidates (512 tokens each); chosen by a CPU speed/quality benchmark (`eval/results/reranker_bench.csv`: 3.9 s instead of 43.8 s per answer for bge-reranker-v2-m3 with 30 candidates, MRR within 0.02). Its calibrated score decides when to refuse *before* calling the LLM |
-| Rule-based router (v2) | the two specs are complementary (Stage 2 vs Stage 3); filtering by spec removes look-alike clauses. v2 sends a question to both specs when it mixes architecture and NAS signals or asks about a procedure and its messages; tuned only on `tests/test_router.py`; `retrieval.router_version: 1` restores the original rules |
+| Reciprocal Rank Fusion (k = 60), BM25 weight 0.5 | rank-based fusion of heterogeneous scores; the BM25 list counts half (MRR 0.807 vs 0.750 at weight 1.0) so keyword-only matches do not crowd the reranker's 15 candidates |
+| Cross-encoder reranker + score gate | `bge-reranker-v2-m3` (multilingual) reorders the 15 best fused candidates (512 tokens each): the CPU benchmark (`eval/results/reranker_bench.csv`) cut reranking from 43.8 s (30 candidates, 1,024 tokens) to 12.8 s per answer with no MRR loss. `bge-reranker-base` (3.9 s) is kept as the fast demo profile `configs/fast.yaml`; it was the default for one round but lost answer correctness (0.88 → 0.80), so the default went back to v2-m3. Its calibrated score decides when to refuse *before* calling the LLM |
+| Rule-based router (v2), soft routing | the two specs are complementary (Stage 2 vs Stage 3). Soft routing searches both specs and boosts the routed spec's chunks 1.5× in RRF, so a wrong route no longer removes the other spec (MRR 0.807 vs 0.770 for hard filtering). v2 sends a question to both specs when it mixes architecture and NAS signals or asks about a procedure and its messages; tuned only on `tests/test_router.py`; `retrieval.router_version: 1` restores the original rules |
 | Gemini primary, Groq then Grok fallbacks | free-tier rate limits and outages; providers without a key are skipped; a 429 waits for the API's Retry-After before retrying or falling back; every answer records the provider/model actually used. Default model `gemini-3.5-flash-lite` (flash models: 20 requests/day on the free tier); `llm.max_tokens` = 8192 because Gemini 3.x thinking tokens share the output budget |
-| Calibrated score gate | reranker threshold 0.10 (bge-reranker-base; 0.45 for bge-reranker-v2-m3) / dense threshold 0.25 chosen by `eval.run_retrieval_eval` (max refusal rate with zero false refusals), stored in `config.yaml` |
+| Calibrated score gate | reranker threshold 0.40 (bge-reranker-v2-m3 @512: out-of-corpus max 0.13, in-corpus min 0.66; 0.15 for bge-reranker-base in `configs/fast.yaml`) / dense threshold 0.55 chosen by `eval.run_retrieval_eval` (max refusal rate with zero false refusals), stored in `config.yaml` |
 | Citation check | removes citations to sections that were not retrieved, flags ungrounded answers |
 | No LangChain / LlamaIndex | every component is a small swappable module, which is what the ablations need |
 

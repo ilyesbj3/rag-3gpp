@@ -22,7 +22,7 @@ flowchart TD
     R --> S["BM25 top 50, spec filter"]
     D --> F["Reciprocal Rank Fusion<br/>k = 60 → top 15"]
     S --> F
-    F --> X["Cross-encoder reranker<br/>bge-reranker-base, 512 tokens (sigmoid)"]
+    F --> X["Cross-encoder reranker<br/>bge-reranker-v2-m3, 15 candidates, 512 tokens (sigmoid)"]
     X --> G{"Score gate<br/>max rerank ≥ threshold?"}
     G -- no --> REF["I could not find this information<br/>in the documents."]
     G -- yes --> K["Final top-k = 6<br/>≥2 per spec on cross routes<br/>adjacent parts merged"]

@@ -313,6 +313,26 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
   2026-11-23). Generation (a) v2-m3, (b) base, (c) ablations resume then.
 - Groq answers for the final best config running in the background (daily token cap).
 
+## Final run (2026-11-23) — project complete
+- Generation with the final defaults (bge-reranker-v2-m3 15/512, gate 0.40, soft routing,
+  BM25 w 0.5, router v2, prompt v2), Gemini `gemini-3.5-flash-lite` for answers and judge,
+  5 configs × 30 questions in one run, no fallback (transient Gemini 503s absorbed by retries):
+
+| Config | Faith. | Correct. | Cit. acc. | Refusal F1 | False refusals |
+|---|---|---|---|---|---|
+| best | 1.00 | 0.97 | 0.98 | 1.00 | 0 |
+| baseline | 1.00 | 0.90 | 0.99 | 0.86 | 1 |
+| no_hybrid | 1.00 | 0.95 | 0.98 | 1.00 | 0 |
+| no_reranker | 0.97 | 0.90 | 0.94 | 0.86 | 1 |
+| no_routing | 1.00 | 0.95 | 0.98 | 1.00 | 0 |
+
+- Out-of-corpus: 3/3 refused by the gate (scores 0.003–0.13), no LLM call.
+- REPORT.md regenerated; README results / technical choices, architecture diagram and slide
+  outline updated to the final defaults (they still described bge-reranker-base / gate 0.10).
+- 136 tests pass, ruff clean.
+- Not re-run (kept as documented in REPORT.md / BONUS.md): Groq cross-judge (n = 9, earlier
+  answer set), fast-profile generation, bonuses on the previous defaults.
+
 ## Open issues
 - Cross-spec questions are the main failure mode (routing + retrieval), see REPORT.md.
 - Rel-17 generation bonus partial (quota) — resumable.
@@ -320,10 +340,6 @@ Docker available (Qdrant default), API keys present in `.env` (never printed or 
 ## Blocked / needs human
 - **Test set validation**: all 30 items `verified: false` (`eval/testset_review.md`); every
   reported number is preliminary until then.
-- **Gemini free-tier quota** (500 requests/day for gemini-3.5-flash-lite): finish the
-  generation table with
-  `python -m eval.run_generation_eval --provider gemini --configs no_reranker,no_routing`
-  then `python -m eval.make_report` (≈ 120 requests).
 - **Groq free-tier daily token cap** (200k tokens/day for openai/gpt-oss-120b): the Groq
   judge pass and the last Groq answers (x-06, x-07) trickle in; resume with
   `python -m eval.run_cross_judge --judge groq` and the Groq generation command in the README.

@@ -1038,8 +1038,11 @@ def main() -> int:
         L += gtab + ["", "![generation gemini](figures/generation_gemini.png)", ""]
         L += [
             "Final defaults: bge-reranker-v2-m3, 15 candidates, 512 tokens, gate 0.40, soft "
-            "routing (weight 1.5), BM25 weight 0.5, router v2, prompt v2. Configurations not "
-            "listed are pending the Gemini free-tier daily quota.",
+            "routing (weight 1.5), BM25 weight 0.5, router v2, prompt v2. All five configurations "
+            "were generated and judged in one run with the same model (no fallback). Compared "
+            "with the previous round, false refusals drop from 4–6 to 0 for the reranker configs. "
+            "This run changed both the prompt (v2: answer the covered part instead of refusing) "
+            "and the reranker (v2-m3 instead of base), so the two effects are not separated.",
             "",
         ]
     for tag, label in (

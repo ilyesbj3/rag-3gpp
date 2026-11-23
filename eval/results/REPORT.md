@@ -90,6 +90,22 @@ Rule: max refusal TPR with zero false refusals; ties -> middle threshold. Chosen
 
 ## Generation
 
+### Generation — final defaults — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
+
+| Config | n | Faithfulness | Correctness | Citation acc. | Citation acc. (loose) | Gold cited | Not grounded | Refusal P | Refusal R | Refusal F1 | False refusals | Latency mean (s) | p95 (s) | Fallback |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| best | 30/30 | 1.00 | 0.97 | 0.98 | 0.98 | 0.89 | 0.00 | 1.00 | 1.00 | 1.00 | 0 | 9.1 | 18.8 | 0.00 |
+| baseline | 30/30 | 1.00 | 0.90 | 0.99 | 0.99 | 0.81 | 0.00 | 0.75 | 1.00 | 0.86 | 1 | 2.2 | 3.7 | 0.00 |
+| no_hybrid | 30/30 | 1.00 | 0.95 | 0.98 | 0.98 | 0.89 | 0.00 | 1.00 | 1.00 | 1.00 | 0 | 3.1 | 5.8 | 0.00 |
+| no_reranker | 30/30 | 0.97 | 0.90 | 0.94 | 0.94 | 0.85 | 0.04 | 0.75 | 1.00 | 0.86 | 1 | 5.9 | 10.3 | 0.00 |
+| no_routing | 30/30 | 1.00 | 0.95 | 0.98 | 0.98 | 0.89 | 0.00 | 1.00 | 1.00 | 1.00 | 0 | 2.9 | 5.8 | 0.00 |
+
+Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
+
+![generation gemini](figures/generation_gemini.png)
+
+Final defaults: bge-reranker-v2-m3, 15 candidates, 512 tokens, gate 0.40, soft routing (weight 1.5), BM25 weight 0.5, router v2, prompt v2. All five configurations were generated and judged in one run with the same model (no fallback). Compared with the previous round, false refusals drop from 4–6 to 0 for the reranker configs. This run changed both the prompt (v2: answer the covered part instead of refusing) and the reranker (v2-m3 instead of base), so the two effects are not separated.
+
 ### Generation — previous round (bge-reranker-base, 15 candidates, 512 tokens, gate 0.10, hard routing, BM25 weight 1.0, prompt v1) — provider `gemini` (gemini-3.5-flash-lite) — *preliminary — gold set pending human validation*
 
 > Run stopped early (quota): judge no_hybrid/o-02: All LLM providers failed:. Rows with n < n_expected are partial; re-run the same command to resume.
@@ -113,8 +129,6 @@ Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/m
 | no_routing | 30/30 | 0.97 | 0.92 | 0.97 | 0.97 | 0.89 | 0.00 | 0.75 | 1.00 | 0.86 | 1 | 1.8 | 3.4 | 0.00 |
 
 Faithfulness and correctness: LLM judge with a fixed 0 / 0.5 / 1 rubric (`eval/metrics.py`), judge = Gemini — **the same model that generated the answers**, so these two columns may carry self-preference bias; see the cross-judging section for the check. Citation accuracy = valid citations / all citations (strict: exact section among the sources; loose: also ancestors). Gold cited = answer cites ≥1 gold section.
-
-_Generation evaluation not run yet._
 
 ### Real end-to-end latency (CPU laptop, no reranker cache)
 
@@ -151,6 +165,15 @@ Metrics that need no judge (same frozen answers):
 | groq (openai/gpt-oss-120b) | 0.98 | 0.67 | 0.75 | 1.00 | 0.86 | 1 |
 
 **Self-preference.** faithfulness: on average a judge scores its own model's answers -0.03 higher than the other judge does (Gemini judge on Gemini answers +0.00, Groq judge on Groq answers -0.06); correctness: on average a judge scores its own model's answers +0.00 higher than the other judge does (Gemini judge on Gemini answers +0.06, Groq judge on Groq answers -0.06). A positive value is a self-preference bias of that size; with 30 questions, a few hundredths is one or two answers, so only a gap that both judges agree on (same ranking of the two answer sets) should be trusted.
+
+## False refusals: gate or LLM?
+
+2 in-corpus questions were refused across the reported generation configurations (current defaults): **0 by the score gate**, **2 by the LLM** after it saw the sources. A gate refusal means retrieval found nothing above the threshold; an LLM refusal means the model judged the retrieved sources insufficient (typically one half of a cross-spec question was missing).
+
+| Config | Question | Type | Refused by | Gate score |
+|---|---|---|---|---|
+| `no_reranker` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.664 |
+| `baseline` | `s23-01` | simple | LLM (gemini-3.5-flash-lite) | 0.664 |
 
 ## Reranker speed / quality benchmark (CPU)
 
@@ -230,8 +253,8 @@ Paired bootstrap on the MRR of `best` (10,000 resamples, seed 42):
 
 Selection rule (fixed before looking at generation): highest retrieval MRR of `best` with the default reranker (bge-reranker-v2-m3), ties broken in favour of the simpler or the required component.
 
-- **Routing mode: soft.** MRR 0.807 vs 0.770 for hard routing at the same BM25 weight. The gain comes from cross-spec questions the router sends to one spec: soft routing still lets chunks of the other spec into the 15 candidates (cross MRR 0.589 vs 0.459). Simple questions are unchanged or slightly better, because the 1.5× boost keeps the routed spec on top.
-- **BM25 weight: 0.5.** 0.807 vs 0.750 (1.0) and 0.801 (0.25). At full weight BM25 pushes keyword-matching but off-topic chunks into the reranker's candidate list; at 0.25 it barely contributes.
+- **Routing mode: soft.** MRR 0.807 vs 0.770 for hard routing at the same BM25 weight. The gain comes from cross-spec questions the router sends to one spec: soft routing still lets chunks of the other spec into the 15 candidates (cross MRR 0.589 vs 0.458, cross R@5 0.571 vs 0.429). Simple questions are unchanged (simple-23 MRR 0.816 vs 0.808, simple-24 0.950 both), because the 1.5× boost keeps the routed spec on top.
+- **BM25 weight: 0.5.** MRR 0.807 vs 0.750 (1.0) and 0.801 (0.25). At full weight BM25 helps cross questions a little (cross MRR 0.607, R@5 0.714) but costs the simple ones more (simple-23 MRR 0.716, simple-24 0.883); 0.5 keeps the simple questions intact; 0.25 is slightly lower on 24.501 (0.933).
 - **Hybrid: on.** With these settings `no_hybrid` ties exactly (MRR 0.807, cross MRR 0.587 vs 0.589). The tie is broken in favour of hybrid search: it is a required component of the assignment and BM25 is the component that matches exact identifiers (timers, cause numbers, section numbers) when the dense model misses them.
 
 None of these differences is statistically established on 27 questions (table above), so the choice is a defensible default, not a proven optimum. With bge-reranker-base the ranking differs (`no_hybrid` is best at 0.831), which is one more reason to read the numbers as configuration-specific.
@@ -305,23 +328,26 @@ Robust effects on this set: reranker (all else on), reranker (dense only). Every
 
 Route: TS 23.501 (architecture / stage 2 signals) · gate score 0.952 · sources: TS 23.501 §5.21.2.1, TS 23.501 §4.2.2, TS 23.501 §6.2.1, TS 23.501 §5.19.5.2, TS 23.501 §5.20, TS 23.501 §5.19.3 · judge: The answer accurately and completely lists the role and functionalities of the AMF based directly on the provided context.
 
-### Cross-spec question — `x-05`
+### Cross-spec question — `x-01`
 
-**Q:** How are user plane resources of existing PDU sessions re-activated with the service request procedure?
+**Q:** Describe the registration procedure and the NAS messages exchanged between the UE and the AMF.
 
 **Answer:**
 
-> To re-activate user plane resources of existing PDU sessions using the service request procedure, the following principles and actions apply according to the documents:
+> Based on the provided documents, the registration procedure and related NAS messages involve the following aspects:
 > 
-> * The UE includes the Uplink data status IE in the SERVICE REQUEST message [TS 24.501 §5.6.1.4.1].
-> * If the UE is not in NB-N1 mode, or if the UE is in NB-N1 mode and does not indicate a request to have user-plane resources established for a number of PDU sessions that exceeds the UE's maximum number of supported user-plane resources, the AMF shall indicate the SMF to re-establish the user-plane resources for the corresponding PDU sessions [TS 24.501 §5.6.1.4.1].
-> * The AMF includes the PDU session reactivation result IE in the SERVICE ACCEPT message to indicate the user-plane resources re-establishment result of the PDU sessions for which the UE requested to re-establish the user-plane resources [TS 24.501 §5.6.1.4.1].
-> * For a PDU session for LADN, the AMF determines the UE presence in LADN service area and forwards the UE presence in LADN service area towards the SMF [TS 24.501 §5.6.1.4.1].
-> * If the Allowed PDU session status IE is included in the SERVICE REQUEST message, the AMF notifies the SMF whether reactivation of user-plane resources for corresponding PDU session(s) associated with non-3GPP access can be performed or cannot be performed based on whether the corresponding PDU session IDs are indicated in the Allowed PDU session status IE (and whether supported user-plane resource limits are respected for UEs in NB-N1 mode) [TS 24.501 §5.6.1.4.1].
-> * If user-plane resources are successfully reactivated for a PDU session indicated by the UE in the Allowed PDU session status IE as allowed to be re-established over 3GPP access, the UE considers the corresponding PDU session to be associated with the 3GPP access, and the AMF and SMF update the associated access type [TS 24.501 §5.6.1.4.1].
-> * If user-plane resources cannot be established for a PDU session, the AMF includes the PDU session reactivation result IE in the SERVICE ACCEPT message indicating that they cannot be re-established, along with a PDU session reactivation result error cause IE with a specific 5GMM cause (e.g., #43 "LADN not available", #28 "restricted service area", #92 "insufficient user-plane resources for the PDU session", or #69 "insufficient resources for specific slice") depending on the reason provided by the SMF or determined by the AMF [TS 24.501 §5.6.1.4.1].
+> * **Initial NAS Messages for Registration:** The REGISTRATION REQUEST message is one of the initial NAS messages sent by the UE to establish an N1 NAS signalling connection (transitioning from 5GMM-IDLE to 5GMM-CONNECTED mode) [TS 24.501 §5.3.1.1]. 
+> * **Security Protection of REGISTRATION REQUEST:** 
+>  * If the UE has a valid current 5G NAS security context or native 5G NAS security context, it transmits the REGISTRATION REQUEST message integrity protected with that context and includes the corresponding ngKSI [TS 24.501 §4.4.2.5].
+>  * If the UE has no valid native 5G NAS security context during an inter-system change from S1 mode to N1 mode in 5GMM-IDLE mode, it sends the REGISTRATION REQUEST message without integrity protection and encryption [TS 24.501 §4.4.2.5].
+> * **AMF Handling and Security Establishment:**
+>  * Upon receiving the REGISTRATION REQUEST, if the verification of the message is successful, the AMF may reply with a REGISTRATION ACCEPT message (which is integrity protected and ciphered) or initiate a security mode control procedure [TS 24.501 §4.4.2.5].
+>  * If a REGISTRATION REQUEST message for initial registration fails the integrity check and is not for emergency services, the AMF authenticates the subscriber and initiates a security mode control procedure using a SECURITY MODE COMMAND message containing the Additional 5G security information IE with the RINMR bit set to "Retransmission of the initial NAS message requested" [TS 24.501 §4.4.4.3].
+>  * The AMF initiates the NAS security mode control procedure by sending a SECURITY MODE COMMAND message and starting timer T3560 [TS 24.501 §5.4.2.2].
+> 
+> *(Note: Detailed procedures regarding session management, connection management architecture details, and subsequent deregistration or service request steps are partially covered in the sources, but the specific step-by-step full flow of general registration beyond NAS security establishment and initial messaging is not fully detailed in the provided excerpts.)*
 
-Route: TS 24.501 (NAS / stage 3 signals) · gate score 0.995 · sources: TS 24.501 §5.6.1.4.2, TS 24.501 §5.6.1.4.1, TS 24.501 §5.6.1.4.2, TS 24.501 §5.5.1.3.4, TS 24.501 §5.6.3.3, TS 24.501 §5.6.1.1 · judge: The answer accurately explains how user plane resources of existing PDU sessions are re-activated using the service request procedure, fully supported by the provided context and consistent with the reference.
+Route: TS 24.501, TS 23.501 (cross-spec phrase) · gate score 0.995 · sources: TS 24.501 §4.4.2.5, TS 24.501 §5.3.1.1, TS 23.501 §8.2.2.1, TS 24.501 §4.4.4.3, TS 24.501 §5.4.2.2, TS 23.501 §5.3.3.1 · judge: The answer accurately describes the registration procedure and NAS messages based on the provided context, correctly citing the relevant specifications.
 
 ### Out-of-corpus question — `o-01`
 
@@ -331,7 +357,7 @@ Route: TS 24.501 (NAS / stage 3 signals) · gate score 0.995 · sources: TS 24.5
 
 > I could not find this information in the documents.
 
-Route: TS 24.501, TS 23.501 (no signal) · gate score 0.050 · sources: none · judge: Both the answer and reference correctly state that the information is not present in the provided context.
+Route: TS 24.501, TS 23.501 (no signal) · gate score 0.130 · sources: none · judge: Both the reference and the answer correctly state that the information is not available in the documents.
 
 ## Failure analysis
 
@@ -341,11 +367,8 @@ Route: TS 24.501, TS 23.501 (no signal) · gate score 0.050 · sources: none · 
 - `x-02` gold TS 23.501 §5.6.1; TS 24.501 §6.4.1 — route TS 24.501; top-3 retrieved: TS 24.501 §6.1.1, TS 24.501 §6.2.18, TS 24.501 §6.2.3; R@10 = 0.0
 - `x-07` gold TS 23.501 §5.10.1, §6.2.1; TS 24.501 §5.4.1, §5.4.2 — route TS 24.501; top-3 retrieved: TS 24.501 §4.4.2.5, TS 24.501 §4.4.2.5, TS 24.501 §4.4.2.5; R@10 = 1.0
 
-**Answers not judged fully correct (config `best`): 5**
+**Answers not judged fully correct (config `best`): 2**
 
-- `s23-07` correctness 0.0 faithfulness 1.0 — The answer refuses to answer because the information is missing from the context, but the reference contains the answer, making correctness 0. refused
-- `x-01` correctness 0.0 faithfulness 1.0 — The reference answer provides details on the registration procedure and NAS messages (such as REGISTRATION REQUEST, REGISTRATION ACCEPT, and REGISTRATION COMPLETE), but the assistant incorrectly refused to answer despite relevant information being available in the context/specs. refused
-- `x-02` correctness 0.0 faithfulness 1.0 — The answer refuses to answer, but the reference contains the information, and parts of the context and standard knowledge base allow for a partial or full answer. refused
-- `x-03` correctness 0.0 faithfulness 1.0 — The model refused to answer even though the context contains partial information about how the UE indicates the Requested NSSAI in registration messages, although details about the exact IE encoding come from the reference. refused
-- `x-04` correctness 0.0 faithfulness 1.0 — The reference answer provides a detailed explanation of the registration area and periodic registration update timer based on TS 23.501 and TS 24.501, whereas the assistant incorrectly refused to answer. refused
+- `x-02` correctness 0.5 faithfulness 1.0 — The answer is faithful to the context, but incomplete regarding the full set of exchanged 5GSM messages compared to the reference. Removed citations not among the retrieved sources: [TS 24.501 §6.3]
+- `x-03` correctness 0.5 faithfulness 1.0 — The answer accurately reflects the provided context regarding how the UE indicates network slices, but states that the encoding is not covered in the context, missing the details present in the reference from TS 24.501 about the NSSAI information element type and length.
 
