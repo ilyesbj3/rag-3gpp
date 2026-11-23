@@ -60,7 +60,7 @@ export function fmt(v, digits = 2) {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(digits) : "—";
 }
 
-// Markdown -> sanitized DOM fragment (allowlist from UI_SPEC.md §4.4).
+// Markdown -> sanitized DOM fragment (tag allowlist).
 const ALLOWED_TAGS = ["p", "ol", "ul", "li", "strong", "em", "code", "pre", "br", "table",
   "thead", "tbody", "tr", "th", "td"];
 

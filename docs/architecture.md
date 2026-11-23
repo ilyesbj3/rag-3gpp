@@ -44,7 +44,7 @@ flowchart TD
 | Retrieval | `src/retrieval/router.py`, `hybrid.py`, `reranker.py` | routing, RRF, quotas, part merging, reranking |
 | Generation | `src/generation/prompts.py`, `llm.py`, `citation_check.py` | prompt, LLM fallback, citation validation |
 | Orchestration | `src/pipeline.py` | `RAGPipeline.retrieve()` / `.answer()`, score gate, timings |
-| UI | `app/server.py`, `app/web/` | FastAPI API + static web frontend (UI_SPEC.md): chat, toggles, sources panel, evaluation page |
+| UI | `app/server.py`, `app/web/` | FastAPI API + static web frontend: chat, toggles, sources panel, evaluation page |
 | Evaluation | `eval/` | test set, retrieval and generation evaluations, report |
 
 Every component is injectable in `RAGPipeline` (dense searcher, BM25, embedder, reranker,

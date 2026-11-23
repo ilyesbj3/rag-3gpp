@@ -1,4 +1,4 @@
-"""Prompt templates (CLAUDE.md §9.1). The system prompt is used verbatim."""
+"""Prompt templates. The system prompt is used verbatim."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from html import escape
 
 from src.schemas import RetrievedChunk
 
-# Version 1: the original system prompt (CLAUDE.md §9.1 before the follow-up round).
+# Version 1: the original system prompt (before the follow-up round).
 _SYSTEM_PROMPT_V1 = """You are a 3GPP 5G standards assistant. You answer questions using ONLY the sources provided
 in the user message, which are excerpts from 3GPP TS 23.501 (Release 18) and TS 24.501
 (Release 18).

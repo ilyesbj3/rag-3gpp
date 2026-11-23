@@ -7,7 +7,7 @@ eval/results/raw/gen_<config>_<provider>.jsonl and skipped on re-run.
 
 Faithfulness / correctness use an LLM judge with a fixed 0 / 0.5 / 1 rubric
 (`eval.metrics.JUDGE_TEMPLATE`), judged by Gemini. RAGAS is not used: its Gemini integration
-needs extra LangChain packages that are not part of the approved stack (see PROGRESS.md).
+needs extra LangChain packages that are not part of the approved stack.
 """
 
 from __future__ import annotations

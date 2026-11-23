@@ -25,7 +25,7 @@ dependencies = [
     # generation
     "google-genai>=1.0",
     "openai>=1.40",
-    # web interface (UI_SPEC.md) / plots
+    # web interface / plots
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "httpx>=0.27",
@@ -47,15 +47,15 @@ addopts = "-ra"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["data", "*.md"]  # CLAUDE.md embeds Appendix A verbatim
+extend-exclude = ["data", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-# Appendix A of CLAUDE.md is copied verbatim; keep its original layout.
+# LLM layer kept in its original layout.
 "src/generation/llm.py" = ["E501", "UP", "B"]
-# System prompt kept verbatim from CLAUDE.md §9.1.
+# System prompt kept verbatim.
 "src/generation/prompts.py" = ["E501"]
 
 [tool.ruff.format]

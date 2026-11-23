@@ -1,4 +1,4 @@
-// Evaluation page (UI_SPEC.md §5). Every number comes from /api/eval.
+// Evaluation page. Every number comes from /api/eval.
 import { api } from "./api.js";
 import { el, fmt } from "./dom.js";
 

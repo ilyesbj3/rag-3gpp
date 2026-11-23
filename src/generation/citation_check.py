@@ -1,4 +1,4 @@
-"""Post-generation citation check (CLAUDE.md §9.3).
+"""Post-generation citation check.
 
 - Extracts citations such as `[TS 24.501 §5.5.1.2.4]` (also `[TS 24.501 Section 5.5]`,
   `[TS24.501 § 5.5]` and several citations inside one bracket) and normalizes them.

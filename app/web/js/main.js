@@ -1,4 +1,4 @@
-// Bootstrap: health check, header, hash router (UI_SPEC.md §6).
+// Bootstrap: health check, header, hash router.
 import { api } from "./api.js";
 import { ask, initChat, refreshPipelineLine, render, updateSend } from "./chat.js";
 import { loadCitationPattern } from "./citations.js";

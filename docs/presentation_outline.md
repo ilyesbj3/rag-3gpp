@@ -72,7 +72,7 @@ slides after validation.
 - Gemini 3.x thinking tokens share the output budget → `max_tokens` 8192.
 
 ## 11. Demo
-- Web app (FastAPI + static HTML/CSS/JS, `UI_SPEC.md`): screenshots
+- Web app (FastAPI + static HTML/CSS/JS): screenshots
   `docs/screenshots/chat.png`, `refusal.png`, `evaluation.png`, `chat_390.png`.
 - Citation chips open and highlight the source; refusal card says whether the gate or the
   LLM refused; fallback badge "answered by Groq"; settings sidebar; evaluation page.

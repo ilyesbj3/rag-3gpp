@@ -1,4 +1,4 @@
-"""Web API with a fake pipeline (no models, no network) — UI_SPEC.md §9."""
+"""Web API with a fake pipeline (no models, no network)."""
 
 from __future__ import annotations
 

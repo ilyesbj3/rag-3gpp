@@ -1,4 +1,4 @@
-// fetch wrappers with timeout and error mapping (UI_SPEC.md §6).
+// fetch wrappers with timeout and error mapping.
 export class ApiError extends Error {
   constructor(status, code, message, fix) {
     super(message);

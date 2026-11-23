@@ -1,4 +1,4 @@
-"""FastAPI backend + static web UI for the 3GPP 5G RAG Assistant (UI_SPEC.md).
+"""FastAPI backend + static web UI for the 3GPP 5G RAG Assistant.
 
     uvicorn app.server:app --host 127.0.0.1 --port 8000      # then open http://127.0.0.1:8000
 

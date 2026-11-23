@@ -1,7 +1,7 @@
 """RAGPipeline: route -> dense (+BM25) -> RRF -> rerank -> gate -> final selection -> LLM.
 
 Every component is injectable so that tests run offline with fixture chunks and a fake LLM,
-and every ablation is reachable through `overrides` (CLAUDE.md §4, §16.11).
+and every ablation is reachable through `overrides`.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Request/response models of the web API (UI_SPEC.md §2). Mirror `src.schemas.Answer`."""
+"""Request/response models of the web API. Mirror `src.schemas.Answer`."""
 
 from __future__ import annotations
 

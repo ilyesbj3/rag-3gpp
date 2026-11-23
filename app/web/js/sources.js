@@ -1,4 +1,4 @@
-// Sources panel (UI_SPEC.md §4.5).
+// Sources panel.
 import { citationMatches } from "./citations.js";
 import { el, fmt, markdownFragment, specClass } from "./dom.js";
 

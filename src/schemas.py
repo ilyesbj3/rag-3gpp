@@ -10,7 +10,7 @@ ContentType = Literal["text", "table", "definitions", "references"]
 
 
 class Chunk(BaseModel):
-    """One retrievable unit of a spec (see CLAUDE.md §5.4)."""
+    """One retrievable unit of a spec."""
 
     chunk_id: str  # "24.501:5.5.1.2.4:0"
     spec: str  # "TS 24.501"

@@ -1,6 +1,6 @@
 """Structural chunking: one chunk per section when it fits, else paragraph windows with overlap.
 
-Rules (CLAUDE.md §5.3, §16.4): tables are never split mid-row (oversized tables are split by
+Rules: tables are never split mid-row (oversized tables are split by
 rows, repeating title + header); chunks never merge different section numbers; each chunk
 text starts with a one-line contextual header that BM25 and the embedder both see.
 
@@ -255,7 +255,7 @@ def table_rows_consistent(text: str) -> bool:
 
 
 def acceptance_checks(chunks: list[Chunk], spec_ids: list[str]) -> list[tuple[str, bool, str]]:
-    """CLAUDE.md §5.5 checks; returns (name, passed, detail)."""
+    """Ingestion acceptance checks; returns (name, passed, detail)."""
     res: list[tuple[str, bool, str]] = []
     per_spec = Counter(c.spec for c in chunks)
     res.append(("both specs produce chunks", all(per_spec[s] > 0 for s in spec_ids), str(per_spec)))

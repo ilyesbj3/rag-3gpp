@@ -1,4 +1,4 @@
-// Settings sidebar (UI_SPEC.md §4.3): switches, top-k, provider, examples.
+// Settings sidebar: switches, top-k, provider, examples.
 import { el } from "./dom.js";
 import { saveSettings, state } from "./state.js";
 

@@ -1,6 +1,6 @@
 """Parse a 3GPP spec .docx into an ordered list of sections with text and table blocks.
 
-Findings from the real documents drive the rules (CLAUDE.md §5.1):
+Findings from the real documents drive the rules:
 - headings use `Heading N` and the custom styles `H6` / `H2`; the level comes from the
   section number depth, not from the style (annex sub-clauses are styled `Heading 1`);
 - clause numbers may carry letter suffixes (`5.35A.1`, `4.2.5a`);

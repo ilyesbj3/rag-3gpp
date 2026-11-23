@@ -1,4 +1,4 @@
-"""Telecom-aware tokenizer for BM25 (CLAUDE.md §6). Used for BOTH indexing and querying.
+"""Telecom-aware tokenizer for BM25. Used for BOTH indexing and querying.
 
 Rules, in order:
 1. lowercase (and NBSP -> space);

@@ -1,4 +1,4 @@
-// Chat column (UI_SPEC.md §4.4): empty state, messages, answer / refusal / error cards.
+// Chat column: empty state, messages, answer / refusal / error cards.
 import { api } from "./api.js";
 import { splitCitations } from "./citations.js";
 import { announce, el, fmt, icon, markdownFragment, specClass } from "./dom.js";

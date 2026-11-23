@@ -1,4 +1,4 @@
-# Shortcuts for the commands in CLAUDE.md §15.
+# Shortcuts for the commands in README.md.
 # On Windows without `make`, run the commands directly.
 PY ?= python
 

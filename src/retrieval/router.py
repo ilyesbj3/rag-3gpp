@@ -1,4 +1,4 @@
-"""Rule-based query routing by specification (CLAUDE.md §8.1).
+"""Rule-based query routing by specification.
 
 Each matching signal adds its weight to the spec's score. Decision (version 2, default):
 explicit spec mention > cross-cutting phrase (incl. "procedure ... messages") > architecture

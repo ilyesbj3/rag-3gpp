@@ -2,7 +2,7 @@
 
     python -m eval.make_bonus_report
 
-Bonuses (CLAUDE.md §17, phase 12): French questions, embedding comparison, LLM comparison,
+Bonuses: French questions, embedding comparison, LLM comparison,
 TS 23.502 added to the corpus, Release 17 vs Release 18.
 """
 
@@ -186,7 +186,7 @@ def section_llms() -> list[str]:
         "",
         "Same retrieval (`best`, identical sources thanks to the cache), same prompt; the "
         "judge is gemini-3.5-flash-lite for both. Grok could not be compared: the xAI key "
-        f"was rejected (see PROGRESS.md). *{PRELIMINARY}*",
+        f"was rejected. *{PRELIMINARY}*",
         "",
     ]
     out += md_table(GEN_HEADER, rows)

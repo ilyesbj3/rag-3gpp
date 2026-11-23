@@ -110,8 +110,7 @@ uvicorn app.server:app --host 127.0.0.1 --port 8000   # 4. open http://127.0.0.1
 ### Web app
 
 FastAPI serves the API (`/api/health`, `/api/ask`, `/api/examples`, `/api/eval`) and the
-static frontend from `app/web/` (plain HTML/CSS/JS, no build step; specification in
-[`UI_SPEC.md`](UI_SPEC.md)). The pipeline and models load once at startup (warm-up ≈ 30 s on
+static frontend from `app/web/` (plain HTML/CSS/JS, no build step). The pipeline and models load once at startup (warm-up ≈ 30 s on
 CPU); if the index or Qdrant is missing the page shows the command that fixes it.
 
 **Fast demo profile:** `RAG_CONFIG=configs/fast.yaml uvicorn app.server:app --port 8000`
@@ -316,14 +315,11 @@ eval/        testset.json · testset_review.md · metrics.py · configs.py ·
              run_retrieval_eval.py · run_generation_eval.py · make_report.py · results/
 docs/        architecture.md · presentation_outline.md
 tests/       unit tests (offline: fixture chunks, fake LLM)
-CLAUDE.md · UI_SPEC.md · PROGRESS.md   process documentation (see below)
 ```
 
 ## Development process
 
-The project was developed with an AI coding assistant. `CLAUDE.md` (project specification
-and rules), `UI_SPEC.md` (web interface specification) and `PROGRESS.md` (build log,
-decisions and open items) are kept in the repository as process documentation.
+The project was developed with an AI coding assistant.
 
 ## References
 

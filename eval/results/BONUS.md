@@ -53,7 +53,7 @@ Indexing time on CPU: bge-small-en-v1.5: 318 s (build incl. BM25), bge-m3: 4422 
 
 Settings: previous defaults (router v1, bge-reranker-v2-m3, 30 candidates, 1,024 tokens, gate 0.45) for both sides of the comparison.
 
-Same retrieval (`best`, identical sources thanks to the cache), same prompt; the judge is gemini-3.5-flash-lite for both. Grok could not be compared: the xAI key was rejected (see PROGRESS.md). *preliminary — gold set pending human validation*
+Same retrieval (`best`, identical sources thanks to the cache), same prompt; the judge is gemini-3.5-flash-lite for both. Grok could not be compared: the xAI key was rejected. *preliminary — gold set pending human validation*
 
 | Run | Config | LLM | n | Faithfulness | Correctness | Citation acc. | Gold cited | Refusal F1 | False refusals | Latency (s) |
 |---|---|---|---|---|---|---|---|---|---|---|
